@@ -1,0 +1,28 @@
+# Ambiente e segredos
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Empacotamento
+dist/
+*.egg-info/
+
+# Django
+db.sqlite3
+/media/
+/staticfiles/
+
+# Ferramentas
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor e sistema operacional
+.idea/
+.vscode/
+*.swp
+.DS_Store
