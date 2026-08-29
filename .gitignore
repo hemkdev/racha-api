@@ -1,4 +1,4 @@
-# Ambiente e segredos
+# Python virtual environment
 .venv/
 .env
 
@@ -6,7 +6,7 @@
 __pycache__/
 *.py[cod]
 
-# Empacotamento
+# Distribution / packaging
 dist/
 *.egg-info/
 
@@ -15,13 +15,13 @@ db.sqlite3
 /media/
 /staticfiles/
 
-# Ferramentas
+# Tools
 .ruff_cache/
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Editor e sistema operacional
+# IDEs
 .idea/
 .vscode/
 *.swp
