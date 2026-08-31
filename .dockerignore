@@ -1,0 +1,17 @@
+# Secrets — must never reach the image or the build context.
+.env
+
+# Rebuilt inside the image, and full of absolute paths from the host.
+.venv/
+__pycache__/
+*.py[cod]
+
+# History and tooling the runtime has no use for.
+.git/
+.github/
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+README.md
+LICENSE
