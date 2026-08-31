@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      # The Python version comes from .python-version; uv installs it if missing.
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      # Same major version as Neon and as the local compose, so a query that
+      # works here works in production.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: racha
+          POSTGRES_USER: racha
+          POSTGRES_PASSWORD: racha
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U racha -d racha"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Throwaway values: this database is created and destroyed within the run,
+      # so neither one is a secret and neither belongs in GitHub Secrets.
+      SECRET_KEY: ci-throwaway-key-not-a-secret
+      DATABASE_URL: postgresql://racha:racha@localhost:5432/racha
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Fail if a model changed and the migration was forgotten
+        run: uv run manage.py makemigrations --check --dry-run
+      - run: uv run manage.py migrate
+      - run: uv run manage.py test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The runner is x86_64 and the target is ARM, so the build is emulated.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,4 +1,4 @@
 from .base import *
 
-# Debug settings 
+# Debug settings
 DEBUG = True
