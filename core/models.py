@@ -2,6 +2,7 @@ from datetime import time
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 
@@ -32,7 +33,9 @@ class Court(models.Model):
     name = models.CharField(max_length=100, unique=True)
     sport = models.CharField(max_length=20, choices=Sport)
     tier = models.CharField(max_length=20, choices=Tier)
-    hour_price = models.DecimalField(max_digits=6, decimal_places=2)
+    hour_price = models.DecimalField(
+        max_digits=6, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
+    )
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
