@@ -180,6 +180,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest" },
     { name = "pytest-django" },
     { name = "ruff" },
 ]
@@ -195,6 +196,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-django", specifier = "==4.14.0" },
     { name = "ruff", specifier = "~=0.14" },
 ]

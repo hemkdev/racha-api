@@ -53,7 +53,7 @@ jobs:
       - name: Fail if a model changed and the migration was forgotten
         run: uv run manage.py makemigrations --check --dry-run
       - run: uv run manage.py migrate
-      - run: uv run manage.py test
+      - run: uv run pytest
 
   build:
     runs-on: ubuntu-latest
