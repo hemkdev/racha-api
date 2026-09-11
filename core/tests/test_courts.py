@@ -8,7 +8,7 @@ from core.models import Court, Sport, Tier
 
 
 @pytest.mark.django_db
-def test_creates_court_with_valid_data():
+def test_accepts_valid_court_at_database_level():
     court = Court.objects.create(
         name="Quadra 1",
         sport=Sport.SOCCER,
@@ -54,7 +54,7 @@ def test_rejects_invalid_sport_at_database_level():
 
 
 @pytest.mark.django_db
-def test_list_returns_created_courts():
+def test_list_courts_with_200():
     Court.objects.create(
         name="Quadra 1",
         sport=Sport.SOCCER,
@@ -78,3 +78,27 @@ def test_rejects_invalid_sport_with_400():
 
     assert response.status_code == 400
     assert "sport" in response.data
+
+
+@pytest.mark.django_db
+def test_rejects_negative_price_with_400():
+    response = APIClient().post(
+        "/api/v1/courts/",
+        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "-50.00"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "hour_price" in response.data
+
+
+@pytest.mark.django_db
+def test_rejects_zero_price_with_400():
+    response = APIClient().post(
+        "/api/v1/courts/",
+        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "0.00"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "hour_price" in response.data
