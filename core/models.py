@@ -25,6 +25,11 @@ class Tier(models.TextChoices):
     DELUXE = "DELUXE"
 
 
+class BookingStatus(models.TextChoices):
+    ACTIVE = "ACTIVE"
+    CANCELLED = "CANCELLED"
+
+
 class User(AbstractUser):
     pass
 
@@ -51,5 +56,37 @@ class Court(models.Model):
             ),
             models.CheckConstraint(
                 condition=Q(tier__in=Tier.values), name="court_tier_valid"
+            ),
+        ]
+
+
+class Booking(models.Model):
+    court = models.ForeignKey(Court, on_delete=models.PROTECT, related_name="bookings")
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField()
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="created_bookings"
+    )
+    status = models.CharField(
+        max_length=20, choices=BookingStatus, default=BookingStatus.ACTIVE
+    )
+
+    def __str__(self):
+        return f"{self.created_by.username} - {self.court.name} ({self.starts_at} to {self.ends_at})"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(starts_at__lt=models.F("ends_at")),
+                name="booking_starts_before_ends",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=BookingStatus.values),
+                name="booking_status_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["court", "starts_at"],
+                name="unique_booking_per_court_time",
+                condition=Q(status=BookingStatus.ACTIVE),
             ),
         ]
