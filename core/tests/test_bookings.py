@@ -36,14 +36,17 @@ def test_rejects_duplicate_booking_active_slot_at_database_level():
         hour_price=50.00,
         is_active=True,
     )
-    with pytest.raises(IntegrityError), transaction.atomic():
-        Booking.objects.create(
-            court=court,
-            starts_at="2024-06-01T10:00:00Z",
-            ends_at="2024-06-01T11:00:00Z",
-            created_by=user,
-            status=BookingStatus.ACTIVE,
-        )
+    Booking.objects.create(
+        court=court,
+        starts_at="2024-06-01T10:00:00Z",
+        ends_at="2024-06-01T11:00:00Z",
+        created_by=user,
+        status=BookingStatus.ACTIVE,
+    )
+    with (
+        pytest.raises(IntegrityError, match="unique_booking_per_court_time"),
+        transaction.atomic(),
+    ):
         Booking.objects.create(
             court=court,
             starts_at="2024-06-01T10:00:00Z",
