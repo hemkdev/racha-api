@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
@@ -83,6 +83,21 @@ class Booking(models.Model):
             models.CheckConstraint(
                 condition=Q(status__in=BookingStatus.values),
                 name="booking_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    starts_at=models.Func(
+                        models.F("starts_at"),
+                        function="DATE_TRUNC",
+                        template="DATE_TRUNC('hour', %(expressions)s)",
+                        output_field=models.DateTimeField(),
+                    )
+                ),
+                name="booking_starts_at_full_hour",
+            ),
+            models.CheckConstraint(
+                condition=Q(ends_at=models.F("starts_at") + timedelta(hours=1)),
+                name="booking_slot_lasts_one_hour",
             ),
             models.UniqueConstraint(
                 fields=["court", "starts_at"],
