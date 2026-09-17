@@ -325,3 +325,26 @@ def test_ignores_client_ends_at_with_201():
     assert response.status_code == 201
     booking = Booking.objects.get(id=response.data["id"])
     assert booking.ends_at == datetime(2024, 6, 1, 11, 0, tzinfo=UTC)
+
+
+@pytest.mark.django_db
+def test_rejects_invalid_status_at_database_level():
+    user = User.objects.create_user(username="testuser", password="testpass")
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    with (
+        pytest.raises(IntegrityError, match="booking_status_valid"),
+        transaction.atomic(),
+    ):
+        Booking.objects.create(
+            court=court,
+            starts_at="2024-06-01T10:00:00Z",
+            ends_at="2024-06-01T11:00:00Z",
+            created_by=user,
+            status="PENDING",
+        )
