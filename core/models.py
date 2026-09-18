@@ -30,8 +30,22 @@ class BookingStatus(models.TextChoices):
     CANCELLED = "CANCELLED"
 
 
+class Role(models.TextChoices):
+    STAFF = "STAFF"
+    CUSTOMER = "CUSTOMER"
+
+
 class User(AbstractUser):
-    pass
+    phone = models.CharField(max_length=20, blank=True)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
+
+    class Meta(AbstractUser.Meta):
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(role__in=Role.values),
+                name="user_role_valid",
+            ),
+        ]
 
 
 class Court(models.Model):
