@@ -30,8 +30,22 @@ class BookingStatus(models.TextChoices):
     CANCELLED = "CANCELLED"
 
 
+class Role(models.TextChoices):
+    STAFF = "STAFF"
+    CUSTOMER = "CUSTOMER"
+
+
 class User(AbstractUser):
-    pass
+    phone = models.CharField(max_length=20, blank=True)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
+
+    class Meta(AbstractUser.Meta):
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(role__in=Role.values),
+                name="user_role_valid",
+            ),
+        ]
 
 
 class Court(models.Model):
@@ -62,6 +76,9 @@ class Court(models.Model):
 
 class Booking(models.Model):
     court = models.ForeignKey(Court, on_delete=models.PROTECT, related_name="bookings")
+    user = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True, related_name="bookings"
+    )
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     created_by = models.ForeignKey(
@@ -72,7 +89,8 @@ class Booking(models.Model):
     )
 
     def __str__(self):
-        return f"{self.created_by.username} - {self.court.name} ({self.starts_at} to {self.ends_at})"
+        user = self.user.username if self.user else "-"
+        return f"{user} - {self.court.name} ({self.starts_at} to {self.ends_at}, created by {self.created_by.username})"
 
     class Meta:
         constraints = [
