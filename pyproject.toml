@@ -1,7 +1,7 @@
 [project]
 name = "racha-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "REST API for booking sport courts"
 readme = "README.md"
 authors = [
     { name = "hemkdev", email = "lucas.hemkemeier007@gmail.com" }
