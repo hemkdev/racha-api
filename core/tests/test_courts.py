@@ -10,7 +10,7 @@ from core.models import Court, Sport, Tier
 @pytest.mark.django_db
 def test_accepts_valid_court_at_database_level():
     court = Court.objects.create(
-        name="Quadra 1",
+        name="Court 1",
         sport=Sport.SOCCER,
         tier=Tier.BASIC,
         hour_price=Decimal("100.00"),
@@ -24,7 +24,7 @@ def test_accepts_valid_court_at_database_level():
 def test_rejects_negative_price_at_database_level():
     with pytest.raises(IntegrityError), transaction.atomic():
         Court.objects.create(
-            name="Quadra 2",
+            name="Court 2",
             sport=Sport.SOCCER,
             tier=Tier.BASIC,
             hour_price=Decimal("-50.00"),
@@ -35,7 +35,7 @@ def test_rejects_negative_price_at_database_level():
 def test_rejects_invalid_tier_at_database_level():
     with pytest.raises(IntegrityError), transaction.atomic():
         Court.objects.create(
-            name="Quadra 2",
+            name="Court 2",
             sport=Sport.SOCCER,
             tier="TOP",
             hour_price=Decimal("50.00"),
@@ -46,7 +46,7 @@ def test_rejects_invalid_tier_at_database_level():
 def test_rejects_invalid_sport_at_database_level():
     with pytest.raises(IntegrityError), transaction.atomic():
         Court.objects.create(
-            name="Quadra 2",
+            name="Court 2",
             sport="BEACH_TENNIS",
             tier=Tier.BASIC,
             hour_price=Decimal("50.00"),
@@ -56,7 +56,7 @@ def test_rejects_invalid_sport_at_database_level():
 @pytest.mark.django_db
 def test_list_courts_with_200():
     Court.objects.create(
-        name="Quadra 1",
+        name="Court 1",
         sport=Sport.SOCCER,
         tier=Tier.BASIC,
         hour_price=Decimal("100.00"),
