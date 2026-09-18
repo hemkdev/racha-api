@@ -352,7 +352,9 @@ def test_rejects_invalid_status_at_database_level():
 
 @pytest.mark.django_db
 def test_accepts_booking_without_user_at_database_level():
-    staff = User.objects.create_user(username="staffuser", password="testpass")
+    staff = User.objects.create_user(
+        username="staffuser", password="testpass", role=Role.STAFF
+    )
     court = Court.objects.create(
         name="Court 1",
         sport=Sport.VOLLEYBALL,
