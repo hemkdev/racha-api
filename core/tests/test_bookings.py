@@ -5,7 +5,7 @@ import pytest
 from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
-from core.models import Booking, BookingStatus, Court, Sport, Tier, User
+from core.models import Booking, BookingStatus, Court, Role, Sport, Tier, User
 
 
 @pytest.mark.django_db
@@ -348,3 +348,52 @@ def test_rejects_invalid_status_at_database_level():
             created_by=user,
             status="PENDING",
         )
+
+
+@pytest.mark.django_db
+def test_accepts_booking_without_user_at_database_level():
+    staff = User.objects.create_user(username="staffuser", password="testpass")
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    booking = Booking.objects.create(
+        court=court,
+        starts_at="2024-06-01T10:00:00Z",
+        ends_at="2024-06-01T11:00:00Z",
+        created_by=staff,
+        status=BookingStatus.ACTIVE,
+    )
+    assert Booking.objects.get(id=booking.id).user is None
+
+
+@pytest.mark.django_db
+def test_accepts_booking_created_by_staff_for_a_customer_at_database_level():
+    staff = User.objects.create_user(
+        username="staffuser", password="testpass", role=Role.STAFF
+    )
+    customer = User.objects.create_user(
+        username="customeruser", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    booking = Booking.objects.create(
+        court=court,
+        starts_at="2024-06-01T10:00:00Z",
+        ends_at="2024-06-01T11:00:00Z",
+        user=customer,
+        created_by=staff,
+        status=BookingStatus.ACTIVE,
+    )
+    assert Booking.objects.get(id=booking.id).user == customer
+    assert customer.bookings.count() == 1
+    assert staff.bookings.count() == 0
+    assert staff.created_bookings.count() == 1
