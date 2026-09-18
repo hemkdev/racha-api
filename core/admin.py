@@ -3,6 +3,12 @@ from django.contrib.auth.admin import UserAdmin
 
 from core.models import Booking, Court, User
 
-admin.site.register(User, UserAdmin)
+
+class ProfileUserAdmin(UserAdmin):
+    fieldsets = (*UserAdmin.fieldsets, ("Arena", {"fields": ("role", "phone")}))
+    add_fieldsets = (*UserAdmin.add_fieldsets, ("Arena", {"fields": ("role", "phone")}))
+
+
+admin.site.register(User, ProfileUserAdmin)
 admin.site.register(Court)
 admin.site.register(Booking)
