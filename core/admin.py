@@ -9,6 +9,21 @@ class ProfileUserAdmin(UserAdmin):
     add_fieldsets = (*UserAdmin.add_fieldsets, ("Arena", {"fields": ("role", "phone")}))
 
 
+class BookingAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "court",
+        "user",
+        "starts_at",
+        "ends_at",
+        "created_by",
+        "status",
+    )
+    list_filter = ("status", "court", "user")
+    list_select_related = ("court", "user", "created_by")
+    search_fields = ("court__name", "user__username", "created_by__username")
+
+
 admin.site.register(User, ProfileUserAdmin)
 admin.site.register(Court)
-admin.site.register(Booking)
+admin.site.register(Booking, BookingAdmin)
