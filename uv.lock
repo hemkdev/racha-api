@@ -198,7 +198,7 @@ requires-dist = [
 dev = [
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-django", specifier = "==4.14.0" },
-    { name = "ruff", specifier = "~=0.14" },
+    { name = "ruff", specifier = "~=0.16.5" },
 ]
 
 [[package]]

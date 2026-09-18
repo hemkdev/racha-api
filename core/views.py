@@ -1,5 +1,3 @@
-# Create your views here.
-
 from rest_framework import viewsets
 
 from core.models import Booking, Court

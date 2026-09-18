@@ -92,7 +92,7 @@ def test_accepts_slot_reuse_after_cancellation_at_database_level():
 
 @pytest.mark.django_db
 def test_rejects_duplicate_active_slot_with_400():
-    responde = APIClient()
+    client = APIClient()
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
@@ -101,21 +101,21 @@ def test_rejects_duplicate_active_slot_with_400():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    responde.force_authenticate(user=user)
+    client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00Z",
         "created_by": user.id,
     }
-    response1 = responde.post("/api/v1/bookings/", booking_data)
+    response1 = client.post("/api/v1/bookings/", booking_data)
     assert response1.status_code == 201
-    response2 = responde.post("/api/v1/bookings/", booking_data)
+    response2 = client.post("/api/v1/bookings/", booking_data)
     assert response2.status_code == 400
 
 
 @pytest.mark.django_db
 def test_accepts_slot_reuse_after_cancellation_with_201():
-    response = APIClient()
+    client = APIClient()
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
@@ -124,17 +124,17 @@ def test_accepts_slot_reuse_after_cancellation_with_201():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    response.force_authenticate(user=user)
+    client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00Z",
         "created_by": user.id,
     }
-    response1 = response.post("/api/v1/bookings/", booking_data)
+    response1 = client.post("/api/v1/bookings/", booking_data)
     assert response1.status_code == 201
     booking_id = response1.data["id"]
     Booking.objects.filter(id=booking_id).update(status=BookingStatus.CANCELLED)
-    response2 = response.post("/api/v1/bookings/", booking_data)
+    response2 = client.post("/api/v1/bookings/", booking_data)
     assert response2.status_code == 201
 
 
