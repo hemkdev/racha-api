@@ -77,7 +77,7 @@ class Court(models.Model):
 class Booking(models.Model):
     court = models.ForeignKey(Court, on_delete=models.PROTECT, related_name="bookings")
     user = models.ForeignKey(
-        User, on_delete=models.PROTECT, null=True, related_name="bookings"
+        User, on_delete=models.PROTECT, null=True, blank=True, related_name="bookings"
     )
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
