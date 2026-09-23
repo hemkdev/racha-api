@@ -13,6 +13,7 @@ dependencies = [
     "gunicorn~=23.0",
     "psycopg[binary]~=3.3.4",
     "djangorestframework~=3.18.0",
+    "djangorestframework-simplejwt~=5.5.1",
 ]
 
 [dependency-groups]
@@ -35,6 +36,7 @@ select = ["E4", "E7", "E9", "F", "I", "RUF"]
 # Ignore the RUF012 in all models.py
 "**/models.py" = ["RUF012"]
 "**/serializers.py" = ["RUF012"]
+"**/views.py" = ["RUF012"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.dev"

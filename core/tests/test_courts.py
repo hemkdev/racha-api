@@ -4,7 +4,7 @@ import pytest
 from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
-from core.models import Court, Sport, Tier
+from core.models import Court, Role, Sport, Tier, User
 
 
 @pytest.mark.django_db
@@ -70,7 +70,14 @@ def test_list_courts_with_200():
 
 @pytest.mark.django_db
 def test_rejects_invalid_sport_with_400():
-    response = APIClient().post(
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.STAFF,
+    )
+    client.force_authenticate(user=user)
+    response = client.post(
         "/api/v1/courts/",
         {"name": "X", "sport": "BANANA", "tier": "BASIC", "hour_price": "50.00"},
         format="json",
@@ -82,7 +89,14 @@ def test_rejects_invalid_sport_with_400():
 
 @pytest.mark.django_db
 def test_rejects_negative_price_with_400():
-    response = APIClient().post(
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.STAFF,
+    )
+    client.force_authenticate(user=user)
+    response = client.post(
         "/api/v1/courts/",
         {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "-50.00"},
         format="json",
@@ -94,7 +108,14 @@ def test_rejects_negative_price_with_400():
 
 @pytest.mark.django_db
 def test_rejects_zero_price_with_400():
-    response = APIClient().post(
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.STAFF,
+    )
+    client.force_authenticate(user=user)
+    response = client.post(
         "/api/v1/courts/",
         {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "0.00"},
         format="json",
@@ -102,3 +123,31 @@ def test_rejects_zero_price_with_400():
 
     assert response.status_code == 400
     assert "hour_price" in response.data
+
+
+@pytest.mark.django_db
+def test_rejects_non_staff_user_with_403():
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.CUSTOMER,
+    )
+    client.force_authenticate(user=user)
+    response = client.post(
+        "/api/v1/courts/",
+        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "50.00"},
+        format="json",
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_rejects_anonymous_user_with_401():
+    client = APIClient()
+    response = client.post(
+        "/api/v1/courts/",
+        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "50.00"},
+        format="json",
+    )
+    assert response.status_code == 401
