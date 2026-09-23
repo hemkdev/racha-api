@@ -1,6 +1,7 @@
 from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
 
-from core.models import Booking, Court
+from core.models import Booking, Court, Role
 from core.permissions import IsStaffRoleOrReadOnly
 from core.serializers import BookingSerializer, CourtSerializer
 
@@ -14,3 +15,11 @@ class CourtViewSet(viewsets.ModelViewSet):
 class BookingViewSet(viewsets.ModelViewSet):
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.role == Role.STAFF:
+            return queryset
+        return queryset.filter(user=user)
