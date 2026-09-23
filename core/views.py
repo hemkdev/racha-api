@@ -1,5 +1,7 @@
-from rest_framework import mixins, viewsets
+from django.db.models import ProtectedError
+from rest_framework import mixins, status, viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from core.models import Booking, Court, Role
 from core.permissions import IsStaffRoleOrReadOnly
@@ -10,6 +12,17 @@ class CourtViewSet(viewsets.ModelViewSet):
     queryset = Court.objects.all()
     serializer_class = CourtSerializer
     permission_classes = [IsStaffRoleOrReadOnly]
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {
+                    "detail": "Cannot delete this court because it has associated bookings, deactivate it instead."
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
 
 
 class BookingViewSet(
