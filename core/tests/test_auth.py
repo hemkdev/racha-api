@@ -1,7 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
-from core.models import User
+from core.models import Role, User
 
 
 @pytest.mark.django_db
@@ -49,3 +49,24 @@ def test_refresh_token_with_200():
     )
     assert response2.status_code == 200
     assert "access" in response2.data
+
+
+@pytest.mark.django_db
+def test_accepts_bearer_token_court_creation_with_201():
+    User.objects.create_user(
+        username="testuser", password="testpassword", role=Role.STAFF
+    )
+    client = APIClient()
+    response1 = client.post(
+        "/api/v1/token/",
+        {"username": "testuser", "password": "testpassword"},
+        format="json",
+    )
+    access_token = response1.data["access"]
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
+    response2 = client.post(
+        "/api/v1/courts/",
+        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "50.00"},
+        format="json",
+    )
+    assert response2.status_code == 201

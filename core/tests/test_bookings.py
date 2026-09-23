@@ -399,3 +399,49 @@ def test_accepts_booking_created_by_staff_for_a_customer_at_database_level():
     assert customer.bookings.count() == 1
     assert staff.bookings.count() == 0
     assert staff.created_bookings.count() == 1
+
+
+@pytest.mark.django_db
+def test_rejects_anonymous_booking_list_with_401():
+    client = APIClient()
+    response = client.get("/api/v1/bookings/")
+    assert response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_lists_only_own_bookings_for_customer_with_200():
+    client = APIClient()
+    customer1 = User.objects.create_user(
+        username="customer1", password="testpass", role=Role.CUSTOMER
+    )
+    customer2 = User.objects.create_user(
+        username="customer2", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    booking_customer1 = Booking.objects.create(
+        court=court,
+        starts_at="2024-06-01T10:00:00Z",
+        ends_at="2024-06-01T11:00:00Z",
+        user=customer1,
+        created_by=customer1,
+        status=BookingStatus.ACTIVE,
+    )
+    Booking.objects.create(
+        court=court,
+        starts_at="2024-06-01T11:00:00Z",
+        ends_at="2024-06-01T12:00:00Z",
+        user=customer2,
+        created_by=customer2,
+        status=BookingStatus.ACTIVE,
+    )
+    client.force_authenticate(user=customer1)
+    response = client.get("/api/v1/bookings/")
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert response.data[0]["id"] == booking_customer1.id
