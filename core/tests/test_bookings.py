@@ -105,7 +105,6 @@ def test_rejects_duplicate_active_slot_with_400():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00Z",
-        "created_by": user.id,
     }
     response1 = client.post("/api/v1/bookings/", booking_data)
     assert response1.status_code == 201
@@ -128,7 +127,6 @@ def test_accepts_slot_reuse_after_cancellation_with_201():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00Z",
-        "created_by": user.id,
     }
     response1 = client.post("/api/v1/bookings/", booking_data)
     assert response1.status_code == 201
@@ -251,7 +249,6 @@ def test_derives_ends_at_one_hour_after_starts_with_201():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00Z",
-        "created_by": user.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -274,7 +271,6 @@ def test_rejects_booking_off_the_hour_with_400():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:30:00Z",
-        "created_by": user.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 400
@@ -296,7 +292,6 @@ def test_rejects_booking_with_fractional_seconds_with_400():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00.123Z",
-        "created_by": user.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 400
@@ -319,7 +314,6 @@ def test_ignores_client_ends_at_with_201():
         "court": court.id,
         "starts_at": "2024-06-01T10:00:00Z",
         "ends_at": "2024-06-01T12:00:00Z",
-        "created_by": user.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201

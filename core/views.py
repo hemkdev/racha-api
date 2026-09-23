@@ -23,3 +23,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         if user.role == Role.STAFF:
             return queryset
         return queryset.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
