@@ -564,3 +564,59 @@ def test_ignores_created_by_in_body_with_201():
     assert response.status_code == 201
     booking = Booking.objects.get(id=response.data["id"])
     assert booking.created_by == staff1
+
+
+@pytest.mark.django_db
+def test_rejects_booking_delete_with_405():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 201
+    booking_id = response.data["id"]
+    delete_response = client.delete(f"/api/v1/bookings/{booking_id}/")
+    assert delete_response.status_code == 405
+    assert Booking.objects.filter(id=booking_id).exists()
+
+
+@pytest.mark.django_db
+def test_rejects_booking_update_with_405():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 201
+    booking_id = response.data["id"]
+    update_data = {
+        "starts_at": "2024-06-01T11:00:00Z",
+    }
+    update_response = client.patch(f"/api/v1/bookings/{booking_id}/", update_data)
+    assert update_response.status_code == 405
+    booking = Booking.objects.get(id=booking_id)
+    assert booking.starts_at == datetime(2024, 6, 1, 10, tzinfo=UTC)
