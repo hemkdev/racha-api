@@ -151,3 +151,47 @@ def test_rejects_anonymous_user_with_401():
         format="json",
     )
     assert response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_deactivates_court_as_staff_with_200():
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.STAFF,
+    )
+    client.force_authenticate(user=user)
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    response = client.patch(f"/api/v1/courts/{court.id}/", {"is_active": False})
+    assert response.status_code == 200
+    court.refresh_from_db()
+    assert court.is_active is False
+
+
+@pytest.mark.django_db
+def test_rejects_deactivates_court_as_customer_with_403():
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.CUSTOMER,
+    )
+    client.force_authenticate(user=user)
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    response = client.patch(f"/api/v1/courts/{court.id}/", {"is_active": False})
+    assert response.status_code == 403
+    court.refresh_from_db()
+    assert court.is_active is True
