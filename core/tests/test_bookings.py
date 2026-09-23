@@ -418,24 +418,149 @@ def test_lists_only_own_bookings_for_customer_with_200():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    booking_customer1 = Booking.objects.create(
-        court=court,
-        starts_at="2024-06-01T10:00:00Z",
-        ends_at="2024-06-01T11:00:00Z",
-        user=customer1,
-        created_by=customer1,
-        status=BookingStatus.ACTIVE,
+    client.force_authenticate(user=customer1)
+    response1 = client.post(
+        "/api/v1/bookings/", {"court": court.id, "starts_at": "2024-06-01T10:00:00Z"}
     )
-    Booking.objects.create(
-        court=court,
-        starts_at="2024-06-01T11:00:00Z",
-        ends_at="2024-06-01T12:00:00Z",
-        user=customer2,
-        created_by=customer2,
-        status=BookingStatus.ACTIVE,
+    client.force_authenticate(user=customer2)
+    client.post(
+        "/api/v1/bookings/", {"court": court.id, "starts_at": "2024-06-01T11:00:00Z"}
     )
     client.force_authenticate(user=customer1)
     response = client.get("/api/v1/bookings/")
     assert response.status_code == 200
     assert len(response.data) == 1
-    assert response.data[0]["id"] == booking_customer1.id
+    assert response.data[0]["id"] == response1.data["id"]
+
+
+@pytest.mark.django_db
+def test_sets_user_to_request_customer_with_201():
+    client = APIClient()
+    customer = User.objects.create_user(
+        username="customer", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=customer)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 201
+    booking = Booking.objects.get(id=response.data["id"])
+    assert booking.user == customer
+    assert booking.created_by == customer
+
+
+@pytest.mark.django_db
+def test_rejects_user_in_body_for_customer_with_400():
+    client = APIClient()
+    customer1 = User.objects.create_user(
+        username="customer1", password="testpass", role=Role.CUSTOMER
+    )
+    customer2 = User.objects.create_user(
+        username="customer2", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=customer1)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+        "user": customer2.id,
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 400
+    assert "user" in response.data
+    assert Booking.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_accepts_user_in_body_for_staff_with_201():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    customer = User.objects.create_user(
+        username="customer", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+        "user": customer.id,
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 201
+    booking = Booking.objects.get(id=response.data["id"])
+    assert booking.user == customer
+
+
+@pytest.mark.django_db
+def test_leaves_user_as_null_when_no_user_is_specified_for_staff_with_201():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 201
+    booking = Booking.objects.get(id=response.data["id"])
+    assert booking.user is None
+
+
+@pytest.mark.django_db
+def test_ignores_created_by_in_body_with_201():
+    client = APIClient()
+    staff1 = User.objects.create_user(
+        username="staff1", password="testpass", role=Role.STAFF
+    )
+    staff2 = User.objects.create_user(
+        username="staff2", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff1)
+    booking_data = {
+        "court": court.id,
+        "starts_at": "2024-06-01T10:00:00Z",
+        "created_by": staff2.id,
+    }
+    response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == 201
+    booking = Booking.objects.get(id=response.data["id"])
+    assert booking.created_by == staff1
