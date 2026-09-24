@@ -23,9 +23,6 @@ uv run pytest
 
 Known gaps, each one the next thing to build:
 
-- [ ] **Hourly slots** — today 10:00 and 10:30 can overlap on the same court
-- [ ] **Authentication and permissions** — today anyone can book on behalf of any user
-- [ ] **Safe court deletion** — deleting a court with bookings returns 500 instead of 4xx
 - [ ] **Orders** — atomic purchase of multiple slots
 - [ ] **Deployment** — Oracle Cloud ARM VM + Neon PostgreSQL
 
