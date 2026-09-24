@@ -4,7 +4,7 @@ import pytest
 from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
-from core.models import Court, Role, Sport, Tier, User
+from core.models import Booking, Court, Role, Sport, Tier, User
 
 
 @pytest.mark.django_db
@@ -195,3 +195,51 @@ def test_rejects_deactivates_court_as_customer_with_403():
     assert response.status_code == 403
     court.refresh_from_db()
     assert court.is_active is True
+
+
+@pytest.mark.django_db
+def test_rejects_deleting_court_with_bookings_with_409():
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.STAFF,
+    )
+    client.force_authenticate(user=user)
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    Booking.objects.create(
+        court=court,
+        starts_at="2024-06-01T10:00:00Z",
+        ends_at="2024-06-01T11:00:00Z",
+        created_by=user,
+    )
+    response = client.delete(f"/api/v1/courts/{court.id}/")
+    assert response.status_code == 409
+    assert Court.objects.filter(id=court.id).exists()
+
+
+@pytest.mark.django_db
+def test_accepts_deleting_court_without_bookings_with_204():
+    client = APIClient()
+    user = User.objects.create(
+        username="testuser",
+        email="testuser@example.com",
+        role=Role.STAFF,
+    )
+    client.force_authenticate(user=user)
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    response = client.delete(f"/api/v1/courts/{court.id}/")
+    assert response.status_code == 204
+    assert not Court.objects.filter(id=court.id).exists()
