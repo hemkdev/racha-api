@@ -176,7 +176,7 @@ def test_deactivates_court_as_staff_with_200():
 
 
 @pytest.mark.django_db
-def test_rejects_deactivates_court_as_customer_with_403():
+def test_rejects_court_deactivation_as_customer_with_403():
     client = APIClient()
     user = User.objects.create(
         username="testuser",

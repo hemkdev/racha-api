@@ -616,6 +616,8 @@ def test_rejects_booking_update_with_405():
     update_data = {
         "starts_at": "2024-06-01T11:00:00Z",
     }
+    put_response = client.put(f"/api/v1/bookings/{booking_id}/", update_data)
+    assert put_response.status_code == 405
     update_response = client.patch(f"/api/v1/bookings/{booking_id}/", update_data)
     assert update_response.status_code == 405
     booking = Booking.objects.get(id=booking_id)
