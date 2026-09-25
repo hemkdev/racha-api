@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from rest_framework import serializers
 
-from core.models import Booking, Court, Role
+from core.models import CLOSES_AT, OPENS_AT, Booking, Court, Role
 
 
 class CourtSerializer(serializers.ModelSerializer):
@@ -19,6 +19,10 @@ class BookingSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "ends_at", "status", "created_by"]
 
     def validate_starts_at(self, value):
+        if value.hour < OPENS_AT.hour or value.hour >= CLOSES_AT.hour:
+            raise serializers.ValidationError(
+                f"Booking must be in working hours ({OPENS_AT.hour}:00-{CLOSES_AT.hour}:00)."
+            )
         if value.minute != 0 or value.second != 0 or value.microsecond != 0:
             raise serializers.ValidationError(
                 "Booking must start at the beginning of an hour."
