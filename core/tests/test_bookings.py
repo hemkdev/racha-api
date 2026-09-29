@@ -624,3 +624,36 @@ def test_rejects_booking_update_with_405():
     assert update_response.status_code == 405
     booking = Booking.objects.get(id=booking_id)
     assert booking.starts_at == datetime(2024, 6, 1, 11, tzinfo=UTC)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "starts_at, expected_status",
+    [
+        ("2026-10-01T07:00:00-03:00", 400),
+        ("2026-10-01T08:00:00-03:00", 201),
+        ("2026-10-01T21:00:00-03:00", 201),
+        ("2026-10-01T22:00:00-03:00", 400),
+        ("2026-10-01T10:00:00Z", 400),
+        ("2026-10-01T11:00:00Z", 201),
+    ],
+)
+def test_validates_working_hours_boundaries(starts_at, expected_status):
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    response = client.post(
+        "/api/v1/bookings/", {"court": court.id, "starts_at": starts_at}
+    )
+    assert response.status_code == expected_status
+    if expected_status == 400:
+        assert "starts_at" in response.data
