@@ -1,9 +1,13 @@
+from datetime import date, datetime, time, timedelta
+
 from django.db.models import ProtectedError
+from django.utils import timezone
 from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.models import Booking, Court, Role
+from core.models import CLOSES_AT, OPENS_AT, Booking, BookingStatus, Court, Role
 from core.permissions import IsStaffRoleOrReadOnly
 from core.serializers import BookingSerializer, CourtSerializer
 
@@ -23,6 +27,46 @@ class CourtViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+
+    @action(detail=True, methods=["get"])
+    def slots(self, request, pk=None):
+        court = self.get_object()
+        if not court.is_active:
+            return Response(
+                {"detail": "No courts match the given query."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        try:
+            value = request.query_params.get("date", "")
+            value = date.fromisoformat(value)
+        except ValueError:
+            return Response(
+                {"date": "Expected date format: YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        tz = timezone.get_current_timezone()
+        starts = [
+            datetime.combine(value, time(hour), tzinfo=tz)
+            for hour in range(OPENS_AT.hour, CLOSES_AT.hour)
+        ]
+        slot_duration = timedelta(hours=1)
+        booked = set(
+            Booking.objects.filter(
+                court=court,
+                status=BookingStatus.ACTIVE,
+                starts_at__gte=starts[0],
+                starts_at__lt=starts[-1] + slot_duration,
+            ).values_list("starts_at", flat=True)
+        )
+        slots = [
+            {
+                "starts_at": start,
+                "ends_at": start + slot_duration,
+                "available": start not in booked,
+            }
+            for start in starts
+        ]
+        return Response({"court": court.id, "date": value.isoformat(), "slots": slots})
 
 
 class BookingViewSet(
