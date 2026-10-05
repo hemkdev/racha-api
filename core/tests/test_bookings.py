@@ -104,7 +104,7 @@ def test_rejects_duplicate_active_slot_with_400():
     client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response1 = client.post("/api/v1/bookings/", booking_data)
     assert response1.status_code == 201
@@ -126,7 +126,7 @@ def test_accepts_slot_reuse_after_cancellation_with_201():
     client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response1 = client.post("/api/v1/bookings/", booking_data)
     assert response1.status_code == 201
@@ -248,12 +248,12 @@ def test_derives_ends_at_one_hour_after_starts_with_201():
     client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
     booking = Booking.objects.get(id=response.data["id"])
-    assert booking.ends_at == datetime(2024, 6, 1, 11, 0, tzinfo=UTC)
+    assert booking.ends_at == datetime(2024, 6, 1, 12, 0, tzinfo=UTC)
 
 
 @pytest.mark.django_db
@@ -270,7 +270,7 @@ def test_rejects_booking_off_the_hour_with_400():
     client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:30:00Z",
+        "starts_at": "2024-06-01T11:30:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 400
@@ -291,7 +291,7 @@ def test_rejects_booking_with_fractional_seconds_with_400():
     client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00.123Z",
+        "starts_at": "2024-06-01T11:00:00.123Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 400
@@ -312,13 +312,13 @@ def test_ignores_client_ends_at_with_201():
     client.force_authenticate(user=user)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
-        "ends_at": "2024-06-01T12:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
+        "ends_at": "2024-06-01T14:00:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
     booking = Booking.objects.get(id=response.data["id"])
-    assert booking.ends_at == datetime(2024, 6, 1, 11, 0, tzinfo=UTC)
+    assert booking.ends_at == datetime(2024, 6, 1, 12, 0, tzinfo=UTC)
 
 
 @pytest.mark.django_db
@@ -420,12 +420,14 @@ def test_lists_only_own_bookings_for_customer_with_200():
     )
     client.force_authenticate(user=customer1)
     response1 = client.post(
-        "/api/v1/bookings/", {"court": court.id, "starts_at": "2024-06-01T10:00:00Z"}
-    )
-    client.force_authenticate(user=customer2)
-    client.post(
         "/api/v1/bookings/", {"court": court.id, "starts_at": "2024-06-01T11:00:00Z"}
     )
+    client.force_authenticate(user=customer2)
+    response2 = client.post(
+        "/api/v1/bookings/", {"court": court.id, "starts_at": "2024-06-01T12:00:00Z"}
+    )
+    assert response1.status_code == 201
+    assert response2.status_code == 201
     client.force_authenticate(user=customer1)
     response = client.get("/api/v1/bookings/")
     assert response.status_code == 200
@@ -449,7 +451,7 @@ def test_sets_user_to_request_customer_with_201():
     client.force_authenticate(user=customer)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -477,7 +479,7 @@ def test_rejects_user_in_body_for_customer_with_400():
     client.force_authenticate(user=customer1)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
         "user": customer2.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
@@ -505,7 +507,7 @@ def test_accepts_user_in_body_for_staff_with_201():
     client.force_authenticate(user=staff)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
         "user": customer.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
@@ -530,7 +532,7 @@ def test_leaves_user_as_null_when_no_user_is_specified_for_staff_with_201():
     client.force_authenticate(user=staff)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -557,7 +559,7 @@ def test_ignores_created_by_in_body_with_201():
     client.force_authenticate(user=staff1)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
         "created_by": staff2.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
@@ -582,7 +584,7 @@ def test_rejects_booking_delete_with_405():
     client.force_authenticate(user=staff)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -608,7 +610,7 @@ def test_rejects_booking_update_with_405():
     client.force_authenticate(user=staff)
     booking_data = {
         "court": court.id,
-        "starts_at": "2024-06-01T10:00:00Z",
+        "starts_at": "2024-06-01T11:00:00Z",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -621,4 +623,37 @@ def test_rejects_booking_update_with_405():
     update_response = client.patch(f"/api/v1/bookings/{booking_id}/", update_data)
     assert update_response.status_code == 405
     booking = Booking.objects.get(id=booking_id)
-    assert booking.starts_at == datetime(2024, 6, 1, 10, tzinfo=UTC)
+    assert booking.starts_at == datetime(2024, 6, 1, 11, tzinfo=UTC)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "starts_at, expected_status",
+    [
+        ("2026-10-01T07:00:00-03:00", 400),
+        ("2026-10-01T08:00:00-03:00", 201),
+        ("2026-10-01T21:00:00-03:00", 201),
+        ("2026-10-01T22:00:00-03:00", 400),
+        ("2026-10-01T10:00:00Z", 400),
+        ("2026-10-01T11:00:00Z", 201),
+    ],
+)
+def test_validates_working_hours_boundaries(starts_at, expected_status):
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    response = client.post(
+        "/api/v1/bookings/", {"court": court.id, "starts_at": starts_at}
+    )
+    assert response.status_code == expected_status
+    if expected_status == 400:
+        assert "starts_at" in response.data
