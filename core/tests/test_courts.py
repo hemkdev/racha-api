@@ -5,7 +5,16 @@ import pytest
 from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
-from core.models import Booking, BookingStatus, Court, Role, Sport, Tier, User
+from core.models import (
+    Booking,
+    BookingKind,
+    BookingStatus,
+    Court,
+    Role,
+    Sport,
+    Tier,
+    User,
+)
 
 
 @pytest.mark.django_db
@@ -218,6 +227,7 @@ def test_rejects_deleting_court_with_bookings_with_409():
         court=court,
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
+        user=user,
         created_by=user,
     )
     response = client.delete(f"/api/v1/courts/{court.id}/")
@@ -284,7 +294,33 @@ def test_list_shows_booked_slots_as_unavailable_with_200():
         court=court,
         starts_at="2026-10-01T13:00:00Z",
         ends_at="2026-10-01T14:00:00Z",
+        user=user,
         created_by=user,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 200
+    availability = [slot["available"] for slot in response.json()["slots"]]
+    assert availability == [True, True, False] + [True] * 11
+
+
+@pytest.mark.django_db
+def test_list_shows_maintenance_slots_as_unavailable_with_200():
+    client = APIClient()
+    staff = User.objects.create(username="staff", role=Role.STAFF)
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    Booking.objects.create(
+        court=court,
+        starts_at="2026-10-01T13:00:00Z",
+        ends_at="2026-10-01T14:00:00Z",
+        created_by=staff,
+        kind=BookingKind.MAINTENANCE,
+        reason="Net repair",
     )
     response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
     assert response.status_code == 200
@@ -307,6 +343,7 @@ def test_cancelled_bookings_do_not_block_slots_with_200():
         court=court,
         starts_at="2026-10-01T13:00:00Z",
         ends_at="2026-10-01T14:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.CANCELLED,
     )
@@ -343,6 +380,7 @@ def test_ignores_bookings_from_other_courts_and_days_with_200():
             court=booking_court,
             starts_at=starts_at,
             ends_at=datetime.fromisoformat(starts_at) + timedelta(hours=1),
+            user=user,
             created_by=user,
         )
     response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
