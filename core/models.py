@@ -35,6 +35,11 @@ class Role(models.TextChoices):
     CUSTOMER = "CUSTOMER"
 
 
+class BookingKind(models.TextChoices):
+    MAINTENANCE = "MAINTENANCE"
+    CUSTOMER = "CUSTOMER"
+
+
 class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
@@ -87,6 +92,10 @@ class Booking(models.Model):
     status = models.CharField(
         max_length=20, choices=BookingStatus, default=BookingStatus.ACTIVE
     )
+    kind = models.CharField(
+        max_length=20, choices=BookingKind, default=BookingKind.CUSTOMER
+    )
+    reason = models.CharField(max_length=200, blank=True, default="")
 
     def __str__(self):
         user = self.user.username if self.user else "-"
@@ -121,5 +130,20 @@ class Booking(models.Model):
                 fields=["court", "starts_at"],
                 name="unique_booking_per_court_time",
                 condition=Q(status=BookingStatus.ACTIVE),
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    kind=BookingKind.CUSTOMER,
+                    user__isnull=False,
+                    reason__exact="",
+                )
+                | Q(
+                    kind=BookingKind.MAINTENANCE,
+                    user__isnull=True,
+                )
+                & ~Q(
+                    reason__exact="",
+                ),
+                name="booking_kind_matches_user_and_reason",
             ),
         ]
