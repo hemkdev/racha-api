@@ -5,7 +5,16 @@ import pytest
 from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
-from core.models import Booking, BookingStatus, Court, Role, Sport, Tier, User
+from core.models import (
+    Booking,
+    BookingKind,
+    BookingStatus,
+    Court,
+    Role,
+    Sport,
+    Tier,
+    User,
+)
 
 
 @pytest.mark.django_db
@@ -22,6 +31,7 @@ def test_accepts_valid_booking_at_database_level():
         court=court,
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.ACTIVE,
     )
@@ -43,6 +53,7 @@ def test_rejects_duplicate_booking_active_slot_at_database_level():
         court=court,
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.ACTIVE,
     )
@@ -54,6 +65,7 @@ def test_rejects_duplicate_booking_active_slot_at_database_level():
             court=court,
             starts_at="2024-06-01T10:00:00Z",
             ends_at="2024-06-01T11:00:00Z",
+            user=user,
             created_by=user,
             status=BookingStatus.ACTIVE,
         )
@@ -73,6 +85,7 @@ def test_accepts_slot_reuse_after_cancellation_at_database_level():
         court=court,
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.ACTIVE,
     )
@@ -83,6 +96,7 @@ def test_accepts_slot_reuse_after_cancellation_at_database_level():
         court=court,
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.ACTIVE,
     )
@@ -154,6 +168,7 @@ def test_rejects_booking_without_full_hour_at_database_level():
             court=court,
             starts_at="2024-06-01T10:30:00Z",
             ends_at="2024-06-01T11:30:00Z",
+            user=user,
             created_by=user,
             status=BookingStatus.ACTIVE,
         )
@@ -177,6 +192,7 @@ def test_rejects_booking_with_fractional_seconds_at_database_level():
             court=court,
             starts_at="2024-06-01T10:00:00.123Z",
             ends_at="2024-06-01T11:00:00.123Z",
+            user=user,
             created_by=user,
             status=BookingStatus.ACTIVE,
         )
@@ -200,6 +216,7 @@ def test_rejects_booking_with_duration_other_than_one_hour_at_database_level():
             court=court,
             starts_at="2024-06-01T10:00:00Z",
             ends_at="2024-06-01T12:00:00Z",
+            user=user,
             created_by=user,
             status=BookingStatus.ACTIVE,
         )
@@ -219,6 +236,7 @@ def test_accepts_back_to_back_bookings_at_database_level():
         court=court,
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.ACTIVE,
     )
@@ -226,6 +244,7 @@ def test_accepts_back_to_back_bookings_at_database_level():
         court=court,
         starts_at="2024-06-01T11:00:00Z",
         ends_at="2024-06-01T12:00:00Z",
+        user=user,
         created_by=user,
         status=BookingStatus.ACTIVE,
     )
@@ -339,13 +358,14 @@ def test_rejects_invalid_status_at_database_level():
             court=court,
             starts_at="2024-06-01T10:00:00Z",
             ends_at="2024-06-01T11:00:00Z",
+            user=user,
             created_by=user,
             status="PENDING",
         )
 
 
 @pytest.mark.django_db
-def test_accepts_booking_without_user_at_database_level():
+def test_accepts_maintenance_without_user_at_database_level():
     staff = User.objects.create_user(
         username="staffuser", password="testpass", role=Role.STAFF
     )
@@ -361,9 +381,47 @@ def test_accepts_booking_without_user_at_database_level():
         starts_at="2024-06-01T10:00:00Z",
         ends_at="2024-06-01T11:00:00Z",
         created_by=staff,
-        status=BookingStatus.ACTIVE,
+        kind=BookingKind.MAINTENANCE,
+        reason="Net repair",
     )
     assert Booking.objects.get(id=booking.id).user is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "kind, has_user, reason",
+    [
+        (BookingKind.CUSTOMER, False, ""),
+        (BookingKind.CUSTOMER, True, "Net repair"),
+        (BookingKind.MAINTENANCE, True, "Net repair"),
+        (BookingKind.MAINTENANCE, False, ""),
+        ("EVENT", True, ""),
+    ],
+)
+def test_rejects_kind_mismatching_user_and_reason_at_database_level(
+    kind, has_user, reason
+):
+    user = User.objects.create_user(username="testuser", password="testpass")
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    with (
+        pytest.raises(IntegrityError, match="booking_kind_matches_user_and_reason"),
+        transaction.atomic(),
+    ):
+        Booking.objects.create(
+            court=court,
+            starts_at="2024-06-01T10:00:00Z",
+            ends_at="2024-06-01T11:00:00Z",
+            user=user if has_user else None,
+            created_by=user,
+            kind=kind,
+            reason=reason,
+        )
 
 
 @pytest.mark.django_db
@@ -517,7 +575,7 @@ def test_accepts_user_in_body_for_staff_with_201():
 
 
 @pytest.mark.django_db
-def test_leaves_user_as_null_when_no_user_is_specified_for_staff_with_201():
+def test_accepts_maintenance_for_staff_with_201():
     client = APIClient()
     staff = User.objects.create_user(
         username="staff", password="testpass", role=Role.STAFF
@@ -533,11 +591,82 @@ def test_leaves_user_as_null_when_no_user_is_specified_for_staff_with_201():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T11:00:00Z",
+        "kind": BookingKind.MAINTENANCE,
+        "reason": "Net repair",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
     booking = Booking.objects.get(id=response.data["id"])
     assert booking.user is None
+    assert booking.kind == BookingKind.MAINTENANCE
+    assert booking.reason == "Net repair"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "extra_data, with_user, error_field",
+    [
+        ({}, False, "user"),
+        ({"reason": "Net repair"}, True, "reason"),
+        ({"kind": BookingKind.MAINTENANCE}, False, "reason"),
+        ({"kind": BookingKind.MAINTENANCE, "reason": "   "}, False, "reason"),
+        ({"kind": BookingKind.MAINTENANCE, "reason": "Net repair"}, True, "user"),
+    ],
+)
+def test_rejects_kind_mismatching_user_and_reason_for_staff_with_400(
+    extra_data, with_user, error_field
+):
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    customer = User.objects.create_user(
+        username="customer", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    booking_data = {"court": court.id, "starts_at": "2024-06-01T11:00:00Z"}
+    if with_user:
+        booking_data["user"] = customer.id
+    response = client.post("/api/v1/bookings/", booking_data | extra_data)
+    assert response.status_code == 400
+    assert error_field in response.data
+    assert Booking.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "extra_data, error_field",
+    [
+        ({"kind": BookingKind.CUSTOMER}, "kind"),
+        ({"kind": BookingKind.MAINTENANCE, "reason": "Net repair"}, "kind"),
+        ({"reason": "Net repair"}, "reason"),
+    ],
+)
+def test_rejects_kind_or_reason_in_body_for_customer_with_400(extra_data, error_field):
+    client = APIClient()
+    customer = User.objects.create_user(
+        username="customer", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=customer)
+    booking_data = {"court": court.id, "starts_at": "2024-06-01T11:00:00Z"}
+    response = client.post("/api/v1/bookings/", booking_data | extra_data)
+    assert response.status_code == 400
+    assert error_field in response.data
+    assert Booking.objects.count() == 0
 
 
 @pytest.mark.django_db
@@ -560,6 +689,7 @@ def test_ignores_created_by_in_body_with_201():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T11:00:00Z",
+        "user": staff1.id,
         "created_by": staff2.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
@@ -585,6 +715,7 @@ def test_rejects_booking_delete_with_405():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T11:00:00Z",
+        "user": staff.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -611,6 +742,7 @@ def test_rejects_booking_update_with_405():
     booking_data = {
         "court": court.id,
         "starts_at": "2024-06-01T11:00:00Z",
+        "user": staff.id,
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
@@ -652,7 +784,8 @@ def test_validates_working_hours_boundaries(starts_at, expected_status):
     )
     client.force_authenticate(user=staff)
     response = client.post(
-        "/api/v1/bookings/", {"court": court.id, "starts_at": starts_at}
+        "/api/v1/bookings/",
+        {"court": court.id, "starts_at": starts_at, "user": staff.id},
     )
     assert response.status_code == expected_status
     if expected_status == 400:
