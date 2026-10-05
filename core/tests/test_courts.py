@@ -1,10 +1,11 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
-from core.models import Booking, Court, Role, Sport, Tier, User
+from core.models import Booking, BookingStatus, Court, Role, Sport, Tier, User
 
 
 @pytest.mark.django_db
@@ -243,3 +244,138 @@ def test_accepts_deleting_court_without_bookings_with_204():
     response = client.delete(f"/api/v1/courts/{court.id}/")
     assert response.status_code == 204
     assert not Court.objects.filter(id=court.id).exists()
+
+
+@pytest.mark.django_db
+def test_lists_public_schedule_with_200():
+    client = APIClient()
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["court"] == court.id
+    assert data["date"] == "2026-10-01"
+    slots = data["slots"]
+    assert len(slots) == 14
+    assert slots[0]["starts_at"] == "2026-10-01T08:00:00-03:00"
+    assert slots[-1]["ends_at"] == "2026-10-01T22:00:00-03:00"
+    assert all(slot["available"] for slot in slots)
+    assert all(set(slot) == {"starts_at", "ends_at", "available"} for slot in slots)
+
+
+@pytest.mark.django_db
+def test_list_shows_booked_slots_as_unavailable_with_200():
+    client = APIClient()
+    user = User.objects.create(username="testuser")
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    Booking.objects.create(
+        court=court,
+        starts_at="2026-10-01T13:00:00Z",
+        ends_at="2026-10-01T14:00:00Z",
+        created_by=user,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 200
+    availability = [slot["available"] for slot in response.json()["slots"]]
+    assert availability == [True, True, False] + [True] * 11
+
+
+@pytest.mark.django_db
+def test_cancelled_bookings_do_not_block_slots_with_200():
+    client = APIClient()
+    user = User.objects.create(username="testuser")
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    Booking.objects.create(
+        court=court,
+        starts_at="2026-10-01T13:00:00Z",
+        ends_at="2026-10-01T14:00:00Z",
+        created_by=user,
+        status=BookingStatus.CANCELLED,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 200
+    availability = [slot["available"] for slot in response.json()["slots"]]
+    assert availability == [True] * 14
+
+
+@pytest.mark.django_db
+def test_ignores_bookings_from_other_courts_and_days_with_200():
+    client = APIClient()
+    user = User.objects.create(username="testuser")
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    other_court = Court.objects.create(
+        name="Court 2",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    for booking_court, starts_at in [
+        (other_court, "2026-10-01T13:00:00Z"),
+        (court, "2026-10-02T13:00:00Z"),
+        (court, "2026-10-01T00:00:00Z"),
+    ]:
+        Booking.objects.create(
+            court=booking_court,
+            starts_at=starts_at,
+            ends_at=datetime.fromisoformat(starts_at) + timedelta(hours=1),
+            created_by=user,
+        )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 200
+    availability = [slot["available"] for slot in response.json()["slots"]]
+    assert availability == [True] * 14
+
+
+@pytest.mark.django_db
+def test_rejects_slots_of_inactive_court_with_404():
+    client = APIClient()
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=False,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("query", ["", "?date=abc"])
+def test_rejects_slots_without_valid_date_with_400(query):
+    client = APIClient()
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/{query}")
+    assert response.status_code == 400
+    assert "date" in response.data
