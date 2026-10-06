@@ -41,6 +41,12 @@ class BookingKind(models.TextChoices):
     CUSTOMER = "CUSTOMER"
 
 
+class OrderStatus(models.TextChoices):
+    PENDING = "PENDING"
+    PAID = "PAID"
+    CANCELLED = "CANCELLED"
+
+
 class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
@@ -93,20 +99,31 @@ class Booking(models.Model):
     )
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
-    created_by = models.ForeignKey(
-        User, on_delete=models.PROTECT, related_name="created_bookings"
-    )
     status = models.CharField(
         max_length=20, choices=BookingStatus, default=BookingStatus.ACTIVE
+    )
+    price_charged = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True
     )
     kind = models.CharField(
         max_length=20, choices=BookingKind, default=BookingKind.CUSTOMER
     )
     reason = models.CharField(max_length=200, blank=True, default="")
+    order = models.ForeignKey(
+        "Order",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="bookings",
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="created_bookings"
+    )
 
     def __str__(self):
         user = self.user.username if self.user else "-"
-        return f"{user} - {self.court.name} ({self.starts_at} to {self.ends_at}, created by {self.created_by.username})"
+        order = self.order_id if self.order_id else "-"
+        return f"{user} - {self.court.name} ({self.starts_at} to {self.ends_at}, created by {self.created_by.username}), Order: {order}"
 
     class Meta:
         constraints = [
@@ -143,14 +160,40 @@ class Booking(models.Model):
                     kind=BookingKind.CUSTOMER,
                     user__isnull=False,
                     reason__exact="",
+                    price_charged__gt=0,
+                    price_charged__isnull=False,
+                    order__isnull=False,
                 )
                 | Q(
                     kind=BookingKind.MAINTENANCE,
                     user__isnull=True,
+                    price_charged__isnull=True,
+                    order__isnull=True,
                 )
                 & ~Q(
                     reason__exact="",
                 ),
-                name="booking_kind_matches_user_and_reason",
+                name="booking_kind_fields_consistent",
+            ),
+        ]
+
+
+class Order(models.Model):
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="orders")
+    status = models.CharField(
+        max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name="created_orders"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order {self.id} by {self.user.username}"
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(status__in=OrderStatus.values), name="order_status_valid"
             ),
         ]

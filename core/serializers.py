@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from rest_framework import serializers
 
-from core.models import CLOSES_AT, OPENS_AT, Booking, BookingKind, Court, Role
+from core.models import CLOSES_AT, OPENS_AT, Booking, BookingKind, Court
 
 
 class CourtSerializer(serializers.ModelSerializer):
@@ -25,8 +25,17 @@ class BookingSerializer(serializers.ModelSerializer):
             "status",
             "kind",
             "reason",
+            "order",
+            "price_charged",
         ]
-        read_only_fields = ["id", "ends_at", "status", "created_by"]
+        read_only_fields = [
+            "id",
+            "ends_at",
+            "status",
+            "created_by",
+            "order",
+            "price_charged",
+        ]
 
     def validate_starts_at(self, value):
         if value.hour < OPENS_AT.hour or value.hour >= CLOSES_AT.hour:
@@ -42,37 +51,18 @@ class BookingSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if "starts_at" in attrs:
             attrs["ends_at"] = attrs["starts_at"] + timedelta(hours=1)
-        request = self.context["request"]
-        if request.user.role != Role.STAFF:
-            if "user" in attrs:
-                raise serializers.ValidationError(
-                    {"user": "You cannot set the user for this booking."}
-                )
-            elif "kind" in attrs:
-                raise serializers.ValidationError(
-                    {"kind": "You cannot set the kind for this booking."}
-                )
-            elif "reason" in attrs:
-                raise serializers.ValidationError(
-                    {"reason": "You cannot set the reason for this booking."}
-                )
-            attrs["user"] = request.user
         kind = attrs.get("kind", BookingKind.CUSTOMER)
         reason = attrs.get("reason", "")
-        if kind == BookingKind.CUSTOMER and reason:
+        if kind == BookingKind.CUSTOMER:
             raise serializers.ValidationError(
-                {"reason": "Reason must be empty for customer bookings."}
+                {"kind": "Customer bookings must be created through orders."}
             )
-        elif kind == BookingKind.MAINTENANCE and not reason:
+        elif not reason:
             raise serializers.ValidationError(
                 {"reason": "Reason must be provided for maintenance bookings."}
             )
-        elif kind == BookingKind.MAINTENANCE and attrs.get("user"):
+        elif attrs.get("user"):
             raise serializers.ValidationError(
                 {"user": "User must be empty for maintenance bookings."}
-            )
-        elif kind == BookingKind.CUSTOMER and not attrs.get("user"):
-            raise serializers.ValidationError(
-                {"user": "User must be provided for customer bookings."}
             )
         return attrs
