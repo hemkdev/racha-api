@@ -1,10 +1,11 @@
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 OPENS_AT = time(8, 0)
 CLOSES_AT = time(22, 0)
@@ -61,6 +62,12 @@ class Court(models.Model):
         max_digits=6, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
     )
     is_active = models.BooleanField(default=True)
+
+    def price_at(self, dt: datetime) -> Decimal:
+        start = timezone.localtime(dt)
+        if PEAK_STARTS_AT.hour <= start.hour < PEAK_ENDS_AT.hour:
+            return (self.hour_price * PEAK_MULTIPLIER).quantize(Decimal("0.01"))
+        return self.hour_price
 
     def __str__(self):
         return self.name

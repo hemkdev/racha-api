@@ -276,7 +276,9 @@ def test_lists_public_schedule_with_200():
     assert slots[0]["starts_at"] == "2026-10-01T08:00:00-03:00"
     assert slots[-1]["ends_at"] == "2026-10-01T22:00:00-03:00"
     assert all(slot["available"] for slot in slots)
-    assert all(set(slot) == {"starts_at", "ends_at", "available"} for slot in slots)
+    assert all(
+        set(slot) == {"starts_at", "ends_at", "available", "price"} for slot in slots
+    )
 
 
 @pytest.mark.django_db
@@ -417,3 +419,36 @@ def test_rejects_slots_without_valid_date_with_400(query):
     response = client.get(f"/api/v1/courts/{court.id}/slots/{query}")
     assert response.status_code == 400
     assert "date" in response.data
+
+
+@pytest.mark.parametrize(
+    "starts_at, expected",
+    [
+        ("2026-10-01T08:00:00-03:00", Decimal("50.00")),
+        ("2026-10-01T17:00:00-03:00", Decimal("50.00")),
+        ("2026-10-01T18:00:00-03:00", Decimal("75.00")),
+        ("2026-10-01T21:00:00-03:00", Decimal("75.00")),
+        ("2026-10-01T20:00:00Z", Decimal("50.00")),
+        ("2026-10-01T21:00:00Z", Decimal("75.00")),
+        ("2026-10-02T00:00:00Z", Decimal("75.00")),
+    ],
+)
+def test_prices_peak_slots_by_local_hour(starts_at, expected):
+    court = Court(hour_price=Decimal("50.00"))
+    assert court.price_at(datetime.fromisoformat(starts_at)) == expected
+
+
+@pytest.mark.django_db
+def test_list_shows_slot_prices_with_200():
+    client = APIClient()
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    assert response.status_code == 200
+    prices = [slot["price"] for slot in response.json()["slots"]]
+    assert prices == ["50.00"] * 10 + ["75.00"] * 4
