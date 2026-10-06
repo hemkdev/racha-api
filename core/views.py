@@ -63,6 +63,7 @@ class CourtViewSet(viewsets.ModelViewSet):
                 "starts_at": start,
                 "ends_at": start + slot_duration,
                 "available": start not in booked,
+                "price": str(court.price_at(start)),
             }
             for start in starts
         ]
