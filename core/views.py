@@ -78,7 +78,7 @@ class BookingViewSet(
 ):
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsStaffRoleOrReadOnly]
 
     def get_queryset(self):
         queryset = super().get_queryset()

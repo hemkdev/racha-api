@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -15,6 +15,7 @@ from core.models import (
     Tier,
     User,
 )
+from core.tests.helpers import create_customer_booking
 
 
 @pytest.mark.django_db
@@ -223,13 +224,7 @@ def test_rejects_deleting_court_with_bookings_with_409():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    Booking.objects.create(
-        court=court,
-        starts_at="2024-06-01T10:00:00Z",
-        ends_at="2024-06-01T11:00:00Z",
-        user=user,
-        created_by=user,
-    )
+    create_customer_booking(court, user, "2024-06-01T10:00:00Z")
     response = client.delete(f"/api/v1/courts/{court.id}/")
     assert response.status_code == 409
     assert Court.objects.filter(id=court.id).exists()
@@ -292,13 +287,7 @@ def test_list_shows_booked_slots_as_unavailable_with_200():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    Booking.objects.create(
-        court=court,
-        starts_at="2026-10-01T13:00:00Z",
-        ends_at="2026-10-01T14:00:00Z",
-        user=user,
-        created_by=user,
-    )
+    create_customer_booking(court, user, "2026-10-01T13:00:00Z")
     response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
@@ -341,13 +330,8 @@ def test_cancelled_bookings_do_not_block_slots_with_200():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    Booking.objects.create(
-        court=court,
-        starts_at="2026-10-01T13:00:00Z",
-        ends_at="2026-10-01T14:00:00Z",
-        user=user,
-        created_by=user,
-        status=BookingStatus.CANCELLED,
+    create_customer_booking(
+        court, user, "2026-10-01T13:00:00Z", status=BookingStatus.CANCELLED
     )
     response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
     assert response.status_code == 200
@@ -378,13 +362,7 @@ def test_ignores_bookings_from_other_courts_and_days_with_200():
         (court, "2026-10-02T13:00:00Z"),
         (court, "2026-10-01T00:00:00Z"),
     ]:
-        Booking.objects.create(
-            court=booking_court,
-            starts_at=starts_at,
-            ends_at=datetime.fromisoformat(starts_at) + timedelta(hours=1),
-            user=user,
-            created_by=user,
-        )
+        create_customer_booking(booking_court, user, starts_at)
     response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
