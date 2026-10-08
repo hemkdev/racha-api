@@ -2,11 +2,12 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from core.views import BookingViewSet, CourtViewSet
+from core.views import BookingViewSet, CourtViewSet, OrderViewSet
 
 router = DefaultRouter()
 router.register("courts", CourtViewSet)
 router.register("bookings", BookingViewSet)
+router.register("orders", OrderViewSet)  # Add this line to register the OrderViewSet
 
 urlpatterns = [
     *router.urls,
