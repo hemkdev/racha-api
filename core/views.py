@@ -7,9 +7,9 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from core.models import CLOSES_AT, OPENS_AT, Booking, BookingStatus, Court, Role
+from core.models import CLOSES_AT, OPENS_AT, Booking, BookingStatus, Court, Order, Role
 from core.permissions import IsStaffRoleOrReadOnly
-from core.serializers import BookingSerializer, CourtSerializer
+from core.serializers import BookingSerializer, CourtSerializer, OrderSerializer
 
 
 class CourtViewSet(viewsets.ModelViewSet):
@@ -86,6 +86,18 @@ class BookingViewSet(
         if user.role == Role.STAFF:
             return queryset
         return queryset.filter(user=user)
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class OrderViewSet(
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
