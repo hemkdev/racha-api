@@ -7,7 +7,7 @@ from core.views import BookingViewSet, CourtViewSet, OrderViewSet
 router = DefaultRouter()
 router.register("courts", CourtViewSet)
 router.register("bookings", BookingViewSet)
-router.register("orders", OrderViewSet)  # Add this line to register the OrderViewSet
+router.register("orders", OrderViewSet)
 
 urlpatterns = [
     *router.urls,
