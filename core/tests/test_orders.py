@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest import mock
 
@@ -354,3 +355,216 @@ def test_rolls_back_order_when_slot_is_taken_during_creation_with_400():
     errors = response.data["bookings"]
     assert set(errors) == {1}
     assert_nothing_created()
+
+
+def create_order(user, slots, court=None, status=OrderStatus.PENDING):
+    court = court or create_court()
+    order = Order.objects.create(user=user, created_by=user, status=status)
+    for starts_at in slots:
+        create_customer_booking(
+            court,
+            user,
+            starts_at,
+            order=order,
+            price_charged=court.price_at(datetime.fromisoformat(starts_at)),
+        )
+    return order
+
+
+@pytest.mark.django_db
+def test_returns_total_in_creation_response_with_201():
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    client.force_authenticate(user=customer)
+    data = {
+        "bookings": [
+            {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"},
+            {"court": court.id, "starts_at": "2026-10-01T18:00:00-03:00"},
+        ]
+    }
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 201
+    assert response.data["total"] == "125.00"
+
+
+@pytest.mark.django_db
+def test_lists_only_own_orders_with_total_for_customer_with_200():
+    client = APIClient()
+    customer = create_user("customer")
+    other = create_user("other")
+    court = create_court()
+    order = create_order(
+        customer,
+        ["2026-10-01T08:00:00-03:00", "2026-10-01T18:00:00-03:00"],
+        court=court,
+    )
+    create_order(other, ["2026-10-01T09:00:00-03:00"], court=court)
+    client.force_authenticate(user=customer)
+    response = client.get("/api/v1/orders/")
+    assert response.status_code == 200
+    assert len(response.data) == 1
+    assert response.data[0]["id"] == order.id
+    assert response.data[0]["total"] == "125.00"
+    assert len(response.data[0]["bookings"]) == 2
+
+
+@pytest.mark.django_db
+def test_lists_every_order_for_staff_with_200():
+    client = APIClient()
+    staff = create_user("staff", role=Role.STAFF)
+    court = create_court()
+    create_order(create_user("customer1"), ["2026-10-01T08:00:00-03:00"], court=court)
+    create_order(create_user("customer2"), ["2026-10-01T09:00:00-03:00"], court=court)
+    client.force_authenticate(user=staff)
+    response = client.get("/api/v1/orders/")
+    assert response.status_code == 200
+    assert len(response.data) == 2
+
+
+@pytest.mark.django_db
+def test_rejects_anonymous_order_list_with_401():
+    response = APIClient().get("/api/v1/orders/")
+    assert response.status_code == 401
+
+
+@pytest.mark.django_db
+def test_retrieves_own_order_with_total_with_200():
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(customer, ["2026-10-01T08:00:00-03:00"])
+    client.force_authenticate(user=customer)
+    response = client.get(f"/api/v1/orders/{order.id}/")
+    assert response.status_code == 200
+    assert response.data["total"] == "50.00"
+    assert response.data["status"] == OrderStatus.PENDING
+
+
+@pytest.mark.django_db
+def test_hides_order_of_another_customer_with_404():
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(create_user("other"), ["2026-10-01T08:00:00-03:00"])
+    client.force_authenticate(user=customer)
+    response = client.get(f"/api/v1/orders/{order.id}/")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_excludes_cancelled_bookings_from_total():
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(
+        customer, ["2026-10-01T08:00:00-03:00", "2026-10-01T18:00:00-03:00"]
+    )
+    peak = datetime.fromisoformat("2026-10-01T18:00:00-03:00")
+    order.bookings.filter(starts_at=peak).update(status=BookingStatus.CANCELLED)
+    client.force_authenticate(user=customer)
+    response = client.get(f"/api/v1/orders/{order.id}/")
+    assert response.data["total"] == "50.00"
+
+
+@pytest.mark.django_db
+def test_returns_zero_total_when_every_booking_is_cancelled():
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(customer, ["2026-10-01T08:00:00-03:00"])
+    order.bookings.update(status=BookingStatus.CANCELLED)
+    client.force_authenticate(user=customer)
+    response = client.get(f"/api/v1/orders/{order.id}/")
+    assert response.data["total"] == "0.00"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
+def test_rejects_order_update_and_delete_with_405(method):
+    client = APIClient()
+    staff = create_user("staff", role=Role.STAFF)
+    order = create_order(create_user("customer"), ["2026-10-01T08:00:00-03:00"])
+    client.force_authenticate(user=staff)
+    response = getattr(client, method)(f"/api/v1/orders/{order.id}/", {}, format="json")
+    assert response.status_code == 405
+
+
+@pytest.mark.django_db
+def test_confirms_pending_order_for_staff_with_200():
+    client = APIClient()
+    staff = create_user("staff", role=Role.STAFF)
+    order = create_order(create_user("customer"), ["2026-10-01T08:00:00-03:00"])
+    client.force_authenticate(user=staff)
+    response = client.post(f"/api/v1/orders/{order.id}/confirm/")
+    assert response.status_code == 200
+    assert response.data["status"] == OrderStatus.PAID
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PAID
+
+
+@pytest.mark.django_db
+def test_rejects_confirm_by_customer_with_403():
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(customer, ["2026-10-01T08:00:00-03:00"])
+    client.force_authenticate(user=customer)
+    response = client.post(f"/api/v1/orders/{order.id}/confirm/")
+    assert response.status_code == 403
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PENDING
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("status", [OrderStatus.PAID, OrderStatus.CANCELLED])
+def test_rejects_confirm_of_non_pending_order_with_409(status):
+    client = APIClient()
+    staff = create_user("staff", role=Role.STAFF)
+    order = create_order(
+        create_user("customer"), ["2026-10-01T08:00:00-03:00"], status=status
+    )
+    client.force_authenticate(user=staff)
+    response = client.post(f"/api/v1/orders/{order.id}/confirm/")
+    assert response.status_code == 409
+    order.refresh_from_db()
+    assert order.status == status
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("role", [Role.CUSTOMER, Role.STAFF])
+def test_cancels_pending_order_and_its_bookings_with_200(role):
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(
+        customer, ["2026-10-01T08:00:00-03:00", "2026-10-01T09:00:00-03:00"]
+    )
+    requester = customer if role == Role.CUSTOMER else create_user("staff", role=role)
+    client.force_authenticate(user=requester)
+    response = client.post(f"/api/v1/orders/{order.id}/cancel/")
+    assert response.status_code == 200
+    assert response.data["status"] == OrderStatus.CANCELLED
+    assert response.data["total"] == "0.00"
+    order.refresh_from_db()
+    assert order.status == OrderStatus.CANCELLED
+    assert not order.bookings.filter(status=BookingStatus.ACTIVE).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("status", [OrderStatus.PAID, OrderStatus.CANCELLED])
+def test_rejects_cancel_of_non_pending_order_with_409(status):
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(customer, ["2026-10-01T08:00:00-03:00"], status=status)
+    client.force_authenticate(user=customer)
+    response = client.post(f"/api/v1/orders/{order.id}/cancel/")
+    assert response.status_code == 409
+    order.refresh_from_db()
+    assert order.status == status
+    assert order.bookings.filter(status=BookingStatus.ACTIVE).exists()
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_another_customers_order_with_404():
+    client = APIClient()
+    order = create_order(create_user("other"), ["2026-10-01T08:00:00-03:00"])
+    client.force_authenticate(user=create_user("customer"))
+    response = client.post(f"/api/v1/orders/{order.id}/cancel/")
+    assert response.status_code == 404
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PENDING

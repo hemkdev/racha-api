@@ -738,3 +738,131 @@ def test_validates_working_hours_boundaries(starts_at, expected_status):
     assert response.status_code == expected_status
     if expected_status == 400:
         assert "starts_at" in response.data
+
+
+def create_cancel_scenario(order_status=OrderStatus.PENDING, slots=1):
+    customer = User.objects.create_user(
+        username="customer", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    order = Order.objects.create(
+        user=customer, created_by=customer, status=order_status
+    )
+    bookings = [
+        create_customer_booking(
+            court, customer, f"2026-10-01T{8 + i:02d}:00:00-03:00", order=order
+        )
+        for i in range(slots)
+    ]
+    return customer, court, order, bookings
+
+
+@pytest.mark.django_db
+def test_cancels_own_booking_of_pending_order_for_customer_with_200():
+    client = APIClient()
+    customer, _, order, (booking, _) = create_cancel_scenario(slots=2)
+    client.force_authenticate(user=customer)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 200
+    assert response.data["status"] == BookingStatus.CANCELLED
+    booking.refresh_from_db()
+    order.refresh_from_db()
+    assert booking.status == BookingStatus.CANCELLED
+    assert order.status == OrderStatus.PENDING
+
+
+@pytest.mark.django_db
+def test_cancels_order_when_its_last_active_booking_is_cancelled_with_200():
+    client = APIClient()
+    customer, _, order, (booking,) = create_cancel_scenario()
+    client.force_authenticate(user=customer)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 200
+    order.refresh_from_db()
+    assert order.status == OrderStatus.CANCELLED
+
+
+@pytest.mark.django_db
+def test_cancels_customer_booking_for_staff_with_200():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    _, _, _, (booking,) = create_cancel_scenario()
+    client.force_authenticate(user=staff)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 200
+    booking.refresh_from_db()
+    assert booking.status == BookingStatus.CANCELLED
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_booking_in_paid_order_with_409():
+    client = APIClient()
+    customer, _, order, (booking,) = create_cancel_scenario(OrderStatus.PAID)
+    client.force_authenticate(user=customer)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 409
+    booking.refresh_from_db()
+    order.refresh_from_db()
+    assert booking.status == BookingStatus.ACTIVE
+    assert order.status == OrderStatus.PAID
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_cancelled_booking_with_409():
+    client = APIClient()
+    customer, _, _, (booking, _) = create_cancel_scenario(slots=2)
+    booking.status = BookingStatus.CANCELLED
+    booking.save()
+    client.force_authenticate(user=customer)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 409
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_another_customers_booking_with_404():
+    client = APIClient()
+    _, _, _, (booking,) = create_cancel_scenario()
+    other = User.objects.create_user(
+        username="other", password="testpass", role=Role.CUSTOMER
+    )
+    client.force_authenticate(user=other)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 404
+    booking.refresh_from_db()
+    assert booking.status == BookingStatus.ACTIVE
+
+
+@pytest.mark.django_db
+def test_cancels_maintenance_for_staff_with_200():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    _, court, _, _ = create_cancel_scenario()
+    booking = Booking.objects.create(
+        court=court,
+        starts_at=datetime(2026, 10, 1, 15, tzinfo=UTC),
+        ends_at=datetime(2026, 10, 1, 16, tzinfo=UTC),
+        created_by=staff,
+        **MAINTENANCE,
+    )
+    client.force_authenticate(user=staff)
+    response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 200
+    booking.refresh_from_db()
+    assert booking.status == BookingStatus.CANCELLED
+
+
+@pytest.mark.django_db
+def test_rejects_anonymous_booking_cancel_with_401():
+    _, _, _, (booking,) = create_cancel_scenario()
+    response = APIClient().post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 401
