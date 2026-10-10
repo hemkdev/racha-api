@@ -155,16 +155,18 @@ class OrderSerializer(serializers.ModelSerializer):
                             kind=BookingKind.CUSTOMER,
                             price_charged=price_charged,
                         )
-                except IntegrityError:
-                    raise serializers.ValidationError(
-                        {
-                            "bookings": {
-                                index: {
-                                    "starts_at": [
-                                        "This court is already booked for the selected time slot."
-                                    ]
+                except IntegrityError as error:
+                    if "unique_booking_per_court_time" in str(error):
+                        raise serializers.ValidationError(
+                            {
+                                "bookings": {
+                                    index: {
+                                        "starts_at": [
+                                            "This court is already booked for the selected time slot."
+                                        ]
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    raise
         return Order.objects.with_total().get(pk=order.id)
