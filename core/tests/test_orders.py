@@ -19,6 +19,8 @@ from core.models import (
 )
 from core.tests.helpers import create_customer_booking
 
+SLOT_TAKEN = "This court is already booked for the selected time slot."
+
 
 def create_court(name="Court 1", is_active=True):
     return Court.objects.create(
@@ -201,6 +203,7 @@ def test_rejects_whole_order_when_one_slot_is_taken_with_400(blocking_kind):
     assert response.status_code == 400
     errors = response.data["bookings"]
     assert set(errors) == {1}
+    assert errors[1] == {"starts_at": [SLOT_TAKEN]}
     assert Order.objects.count() == orders_before
     assert Booking.objects.count() == bookings_before
 
@@ -354,6 +357,7 @@ def test_rolls_back_order_when_slot_is_taken_during_creation_with_400():
     assert response.status_code == 400
     errors = response.data["bookings"]
     assert set(errors) == {1}
+    assert errors[1] == {"starts_at": [SLOT_TAKEN]}
     assert_nothing_created()
 
 
