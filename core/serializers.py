@@ -160,7 +160,9 @@ class OrderSerializer(serializers.ModelSerializer):
                         {
                             "bookings": {
                                 index: {
-                                    "starts_at": "This court is already booked for the selected time slot."
+                                    "starts_at": [
+                                        "This court is already booked for the selected time slot."
+                                    ]
                                 }
                             }
                         }
