@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest import mock
 
 import pytest
+from django.db import IntegrityError
 from rest_framework.test import APIClient
 
 from core.models import (
@@ -358,6 +359,23 @@ def test_rolls_back_order_when_slot_is_taken_during_creation_with_400():
     errors = response.data["bookings"]
     assert set(errors) == {1}
     assert errors[1] == {"starts_at": [SLOT_TAKEN]}
+    assert_nothing_created()
+
+
+@pytest.mark.django_db
+def test_does_not_mask_other_constraint_as_slot_taken():
+    # A zero price breaks booking_kind_fields_consistent, not the slot constraint:
+    # it must surface as an error, never as a 400 claiming the slot is taken.
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    client.force_authenticate(user=customer)
+    data = {"bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    with (
+        mock.patch.object(Court, "price_at", return_value=Decimal("0.00")),
+        pytest.raises(IntegrityError, match="booking_kind_fields_consistent"),
+    ):
+        client.post("/api/v1/orders/", data, format="json")
     assert_nothing_created()
 
 
