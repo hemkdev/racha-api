@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 OPENS_AT = time(8, 0)
@@ -45,6 +45,17 @@ class OrderStatus(models.TextChoices):
     PENDING = "PENDING"
     PAID = "PAID"
     CANCELLED = "CANCELLED"
+
+
+class OrderQuerySet(models.QuerySet):
+    def with_total(self):
+        return self.annotate(
+            total=Sum(
+                "bookings__price_charged",
+                filter=Q(bookings__status=BookingStatus.ACTIVE),
+                default=Decimal("0.00"),
+            )
+        )
 
 
 class User(AbstractUser):
@@ -183,6 +194,7 @@ class Order(models.Model):
     status = models.CharField(
         max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING
     )
+    objects = OrderQuerySet.as_manager()
     created_by = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name="created_orders"
     )

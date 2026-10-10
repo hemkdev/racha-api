@@ -104,10 +104,11 @@ class ItemSerializer(BookingSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     bookings = ItemSerializer(many=True, allow_empty=False)
+    total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = Order
-        fields = ["id", "user", "bookings", "status", "created_by"]
+        fields = ["id", "user", "bookings", "total", "status", "created_by"]
         read_only_fields = ["id", "status", "created_by"]
         extra_kwargs = {"user": {"required": False}}
 
@@ -164,4 +165,4 @@ class OrderSerializer(serializers.ModelSerializer):
                             }
                         }
                     )
-        return order
+        return Order.objects.with_total().get(pk=order.id)
