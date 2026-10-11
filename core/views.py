@@ -5,6 +5,7 @@ from django.db.models import ProtectedError
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -22,6 +23,12 @@ from core.permissions import IsStaffRoleOrReadOnly
 from core.serializers import BookingSerializer, CourtSerializer, OrderSerializer
 
 
+class Conflict(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "Conflict"
+    default_code = "conflict"
+
+
 class CourtViewSet(viewsets.ModelViewSet):
     queryset = Court.objects.all()
     serializer_class = CourtSerializer
@@ -37,6 +44,16 @@ class CourtViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+
+    def perform_update(self, serializer):
+        if (
+            serializer.validated_data.get("is_active") is False
+            and serializer.instance.bookings.filter(
+                status=BookingStatus.ACTIVE, starts_at__gt=timezone.now()
+            ).exists()
+        ):
+            raise Conflict("Cannot deactivate a court with future bookings.")
+        serializer.save()
 
     @action(detail=True, methods=["get"])
     def slots(self, request, pk=None):
@@ -115,6 +132,13 @@ class BookingViewSet(
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+        if booking.starts_at <= timezone.now():
+            return Response(
+                {
+                    "detail": "Cannot cancel this booking because it has already started."
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         with transaction.atomic():
             booking.status = BookingStatus.CANCELLED
             booking.save(update_fields=["status"])
@@ -171,6 +195,17 @@ class OrderViewSet(
         if order.status != OrderStatus.PENDING:
             return Response(
                 {"detail": "Only pending orders can be cancelled."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if (
+            order.bookings.filter(status=BookingStatus.ACTIVE)
+            .filter(starts_at__lte=timezone.now())
+            .exists()
+        ):
+            return Response(
+                {
+                    "detail": "Cannot cancel this order because it has active bookings that have already started."
+                },
                 status=status.HTTP_409_CONFLICT,
             )
         with transaction.atomic():
