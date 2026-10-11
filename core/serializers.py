@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
@@ -20,6 +21,13 @@ class CourtSerializer(serializers.ModelSerializer):
         model = Court
         fields = ["id", "name", "sport", "tier", "hour_price", "is_active"]
         read_only_fields = ["id"]
+
+    def validate_hour_price(self, value):
+        if value % Decimal("0.50") != 0:
+            raise serializers.ValidationError(
+                "Court hour price must be in increments of 0.50."
+            )
+        return value
 
 
 class BookingSerializer(serializers.ModelSerializer):

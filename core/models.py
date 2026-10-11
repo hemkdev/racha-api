@@ -5,6 +5,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q, Sum
+from django.db.models.functions import Mod, Trim
+from django.db.models.lookups import Exact
 from django.utils import timezone
 
 OPENS_AT = time(8, 0)
@@ -12,6 +14,7 @@ CLOSES_AT = time(22, 0)
 PEAK_STARTS_AT = time(18, 0)
 PEAK_ENDS_AT = time(22, 0)
 PEAK_MULTIPLIER = Decimal("1.5")
+models.CharField.register_lookup(Trim)
 
 
 class Sport(models.TextChoices):
@@ -100,6 +103,10 @@ class Court(models.Model):
             models.CheckConstraint(
                 condition=Q(tier__in=Tier.values), name="court_tier_valid"
             ),
+            models.CheckConstraint(
+                condition=Exact(Mod("hour_price", Decimal("0.50")), 0),
+                name="court_hour_price_half_steps",
+            ),
         ]
 
 
@@ -182,7 +189,7 @@ class Booking(models.Model):
                     order__isnull=True,
                 )
                 & ~Q(
-                    reason__exact="",
+                    reason__trim="",
                 ),
                 name="booking_kind_fields_consistent",
             ),
