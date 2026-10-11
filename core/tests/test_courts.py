@@ -224,7 +224,7 @@ def test_rejects_deleting_court_with_bookings_with_409():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    create_customer_booking(court, user, "2024-06-01T10:00:00Z")
+    create_customer_booking(court, user, "2030-06-01T10:00:00Z")
     response = client.delete(f"/api/v1/courts/{court.id}/")
     assert response.status_code == 409
     assert Court.objects.filter(id=court.id).exists()
@@ -261,15 +261,15 @@ def test_lists_public_schedule_with_200():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     data = response.json()
     assert data["court"] == court.id
-    assert data["date"] == "2026-10-01"
+    assert data["date"] == "2030-10-01"
     slots = data["slots"]
     assert len(slots) == 14
-    assert slots[0]["starts_at"] == "2026-10-01T08:00:00-03:00"
-    assert slots[-1]["ends_at"] == "2026-10-01T22:00:00-03:00"
+    assert slots[0]["starts_at"] == "2030-10-01T08:00:00-03:00"
+    assert slots[-1]["ends_at"] == "2030-10-01T22:00:00-03:00"
     assert all(slot["available"] for slot in slots)
     assert all(
         set(slot) == {"starts_at", "ends_at", "available", "price"} for slot in slots
@@ -287,8 +287,8 @@ def test_list_shows_booked_slots_as_unavailable_with_200():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    create_customer_booking(court, user, "2026-10-01T13:00:00Z")
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    create_customer_booking(court, user, "2030-10-01T13:00:00Z")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
     assert availability == [True, True, False] + [True] * 11
@@ -307,13 +307,13 @@ def test_list_shows_maintenance_slots_as_unavailable_with_200():
     )
     Booking.objects.create(
         court=court,
-        starts_at="2026-10-01T13:00:00Z",
-        ends_at="2026-10-01T14:00:00Z",
+        starts_at="2030-10-01T13:00:00Z",
+        ends_at="2030-10-01T14:00:00Z",
         created_by=staff,
         kind=BookingKind.MAINTENANCE,
         reason="Net repair",
     )
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
     assert availability == [True, True, False] + [True] * 11
@@ -331,9 +331,9 @@ def test_cancelled_bookings_do_not_block_slots_with_200():
         is_active=True,
     )
     create_customer_booking(
-        court, user, "2026-10-01T13:00:00Z", status=BookingStatus.CANCELLED
+        court, user, "2030-10-01T13:00:00Z", status=BookingStatus.CANCELLED
     )
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
     assert availability == [True] * 14
@@ -358,12 +358,12 @@ def test_ignores_bookings_from_other_courts_and_days_with_200():
         is_active=True,
     )
     for booking_court, starts_at in [
-        (other_court, "2026-10-01T13:00:00Z"),
-        (court, "2026-10-02T13:00:00Z"),
-        (court, "2026-10-01T00:00:00Z"),
+        (other_court, "2030-10-01T13:00:00Z"),
+        (court, "2030-10-02T13:00:00Z"),
+        (court, "2030-10-01T00:00:00Z"),
     ]:
         create_customer_booking(booking_court, user, starts_at)
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
     assert availability == [True] * 14
@@ -379,7 +379,7 @@ def test_rejects_slots_of_inactive_court_with_404():
         hour_price=Decimal("50.00"),
         is_active=False,
     )
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 404
 
 
@@ -402,13 +402,13 @@ def test_rejects_slots_without_valid_date_with_400(query):
 @pytest.mark.parametrize(
     "starts_at, expected",
     [
-        ("2026-10-01T08:00:00-03:00", Decimal("50.00")),
-        ("2026-10-01T17:00:00-03:00", Decimal("50.00")),
-        ("2026-10-01T18:00:00-03:00", Decimal("75.00")),
-        ("2026-10-01T21:00:00-03:00", Decimal("75.00")),
-        ("2026-10-01T20:00:00Z", Decimal("50.00")),
-        ("2026-10-01T21:00:00Z", Decimal("75.00")),
-        ("2026-10-02T00:00:00Z", Decimal("75.00")),
+        ("2030-10-01T08:00:00-03:00", Decimal("50.00")),
+        ("2030-10-01T17:00:00-03:00", Decimal("50.00")),
+        ("2030-10-01T18:00:00-03:00", Decimal("75.00")),
+        ("2030-10-01T21:00:00-03:00", Decimal("75.00")),
+        ("2030-10-01T20:00:00Z", Decimal("50.00")),
+        ("2030-10-01T21:00:00Z", Decimal("75.00")),
+        ("2030-10-02T00:00:00Z", Decimal("75.00")),
     ],
 )
 def test_prices_peak_slots_by_local_hour(starts_at, expected):
@@ -426,7 +426,7 @@ def test_list_shows_slot_prices_with_200():
         hour_price=Decimal("50.00"),
         is_active=True,
     )
-    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2026-10-01")
+    response = client.get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     prices = [slot["price"] for slot in response.json()["slots"]]
     assert prices == ["50.00"] * 10 + ["75.00"] * 4

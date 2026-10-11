@@ -51,9 +51,9 @@ def test_creates_order_with_nested_bookings_for_customer_with_201():
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T09:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T10:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T09:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T10:00:00-03:00"},
         ]
     }
     response = client.post("/api/v1/orders/", data, format="json")
@@ -83,7 +83,7 @@ def test_creates_order_for_customer_as_staff_with_201():
     client.force_authenticate(user=staff)
     data = {
         "user": customer.id,
-        "bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}],
+        "bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}],
     }
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 201
@@ -104,8 +104,8 @@ def test_accepts_slots_from_different_courts_in_one_order_with_201():
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court1.id, "starts_at": "2026-10-01T20:00:00-03:00"},
-            {"court": court2.id, "starts_at": "2026-10-01T20:00:00-03:00"},
+            {"court": court1.id, "starts_at": "2030-10-01T20:00:00-03:00"},
+            {"court": court2.id, "starts_at": "2030-10-01T20:00:00-03:00"},
         ]
     }
     response = client.post("/api/v1/orders/", data, format="json")
@@ -121,8 +121,8 @@ def test_charges_peak_price_by_local_hour_with_201():
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court.id, "starts_at": "2026-10-01T17:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T21:00:00Z"},
+            {"court": court.id, "starts_at": "2030-10-01T17:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T21:00:00Z"},
         ]
     }
     response = client.post("/api/v1/orders/", data, format="json")
@@ -147,7 +147,7 @@ def test_charges_peak_price_of_most_expensive_court_with_201():
     court.hour_price = Decimal("9999.99")
     court.save()
     client.force_authenticate(user=customer)
-    starts_at = "2026-10-01T18:00:00-03:00"
+    starts_at = "2030-10-01T18:00:00-03:00"
     data = {"bookings": [{"court": court.id, "starts_at": starts_at}]}
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 201
@@ -162,7 +162,7 @@ def test_keeps_price_charged_when_court_price_changes():
     customer = create_user("customer")
     court = create_court()
     client.force_authenticate(user=customer)
-    data = {"bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    data = {"bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}]}
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 201
     court.hour_price = Decimal("80.00")
@@ -179,10 +179,10 @@ def test_accepts_slot_of_cancelled_booking_with_201():
     other = create_user("other")
     court = create_court()
     create_customer_booking(
-        court, other, "2026-10-01T08:00:00-03:00", status=BookingStatus.CANCELLED
+        court, other, "2030-10-01T08:00:00-03:00", status=BookingStatus.CANCELLED
     )
     client.force_authenticate(user=customer)
-    data = {"bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    data = {"bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}]}
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 201
 
@@ -198,12 +198,12 @@ def test_rejects_whole_order_when_one_slot_is_taken_with_400(blocking_kind):
     staff = create_user("staff", role=Role.STAFF)
     court = create_court()
     if blocking_kind == BookingKind.CUSTOMER:
-        create_customer_booking(court, other, "2026-10-01T09:00:00-03:00")
+        create_customer_booking(court, other, "2030-10-01T09:00:00-03:00")
     else:
         Booking.objects.create(
             court=court,
-            starts_at="2026-10-01T09:00:00-03:00",
-            ends_at="2026-10-01T10:00:00-03:00",
+            starts_at="2030-10-01T09:00:00-03:00",
+            ends_at="2030-10-01T10:00:00-03:00",
             created_by=staff,
             kind=BookingKind.MAINTENANCE,
             reason="Net repair",
@@ -213,9 +213,9 @@ def test_rejects_whole_order_when_one_slot_is_taken_with_400(blocking_kind):
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T09:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T10:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T09:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T10:00:00-03:00"},
         ]
     }
     response = client.post("/api/v1/orders/", data, format="json")
@@ -234,15 +234,15 @@ def test_reports_every_failing_slot_with_400():
     other = create_user("other")
     court = create_court()
     inactive = create_court("Court 2", is_active=False)
-    create_customer_booking(court, other, "2026-10-01T09:00:00-03:00")
+    create_customer_booking(court, other, "2030-10-01T09:00:00-03:00")
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court.id, "starts_at": "2026-10-01T07:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T09:00:00-03:00"},
-            {"court": inactive.id, "starts_at": "2026-10-01T10:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T11:30:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T12:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T07:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T09:00:00-03:00"},
+            {"court": inactive.id, "starts_at": "2030-10-01T10:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T11:30:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T12:00:00-03:00"},
         ]
     }
     response = client.post("/api/v1/orders/", data, format="json")
@@ -261,7 +261,7 @@ def test_rejects_unknown_court_with_400():
     client = APIClient()
     customer = create_user("customer")
     client.force_authenticate(user=customer)
-    data = {"bookings": [{"court": 999, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    data = {"bookings": [{"court": 999, "starts_at": "2030-10-01T08:00:00-03:00"}]}
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 400
     assert "court" in response.data["bookings"][0]
@@ -274,7 +274,7 @@ def test_rejects_same_slot_twice_in_one_order_with_400():
     customer = create_user("customer")
     court = create_court()
     client.force_authenticate(user=customer)
-    slot = {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}
+    slot = {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}
     data = {"bookings": [slot, slot]}
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 400
@@ -303,7 +303,7 @@ def test_rejects_user_in_body_for_customer_with_400():
     client.force_authenticate(user=customer)
     data = {
         "user": other.id,
-        "bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}],
+        "bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}],
     }
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 400
@@ -319,7 +319,7 @@ def test_rejects_missing_or_non_customer_user_for_staff_with_400(target):
     other_staff = create_user("other_staff", role=Role.STAFF)
     court = create_court()
     client.force_authenticate(user=staff)
-    data = {"bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    data = {"bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}]}
     if target == "self":
         data["user"] = staff.id
     elif target == "other_staff":
@@ -334,7 +334,7 @@ def test_rejects_missing_or_non_customer_user_for_staff_with_400(target):
 def test_rejects_anonymous_order_with_401():
     client = APIClient()
     court = create_court()
-    data = {"bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    data = {"bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}]}
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 401
     assert_nothing_created()
@@ -348,7 +348,7 @@ def test_rolls_back_order_when_slot_is_taken_during_creation_with_400():
     customer = create_user("customer")
     staff = create_user("staff", role=Role.STAFF)
     court = create_court()
-    contested = "2026-10-01T09:00:00-03:00"
+    contested = "2030-10-01T09:00:00-03:00"
     original_price_at = Court.price_at
 
     def price_at_with_race(self, starts_at):
@@ -356,7 +356,7 @@ def test_rolls_back_order_when_slot_is_taken_during_creation_with_400():
             Booking.objects.create(
                 court=self,
                 starts_at=contested,
-                ends_at="2026-10-01T10:00:00-03:00",
+                ends_at="2030-10-01T10:00:00-03:00",
                 created_by=staff,
                 kind=BookingKind.MAINTENANCE,
                 reason="Concurrent booking",
@@ -366,7 +366,7 @@ def test_rolls_back_order_when_slot_is_taken_during_creation_with_400():
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"},
             {"court": court.id, "starts_at": contested},
         ]
     }
@@ -388,7 +388,7 @@ def test_does_not_mask_other_constraint_as_slot_taken():
     customer = create_user("customer")
     court = create_court()
     client.force_authenticate(user=customer)
-    data = {"bookings": [{"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}]}
+    data = {"bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}]}
     with (
         mock.patch.object(Court, "price_at", return_value=Decimal("0.00")),
         pytest.raises(IntegrityError, match="booking_kind_fields_consistent"),
@@ -401,8 +401,8 @@ def test_does_not_mask_other_constraint_as_slot_taken():
 @pytest.mark.parametrize(
     ("second_court_name", "second_starts_at"),
     [
-        (None, "2026-10-01T09:00:00-03:00"),
-        ("Court 2", "2026-10-01T08:00:00-03:00"),
+        (None, "2030-10-01T09:00:00-03:00"),
+        ("Court 2", "2030-10-01T08:00:00-03:00"),
     ],
     ids=["same_court_other_hour", "other_court_same_hour"],
 )
@@ -417,7 +417,7 @@ def test_concurrent_orders_with_reversed_slots_do_not_deadlock(
     court = create_court()
     second_court = create_court(second_court_name) if second_court_name else court
     customers = {"a": create_user("customer_a"), "b": create_user("customer_b")}
-    first = {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}
+    first = {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}
     second = {"court": second_court.id, "starts_at": second_starts_at}
     payloads = {"a": [first, second], "b": [second, first]}
     barrier = threading.Barrier(2, timeout=2)
@@ -489,8 +489,8 @@ def test_returns_total_in_creation_response_with_201():
     client.force_authenticate(user=customer)
     data = {
         "bookings": [
-            {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"},
-            {"court": court.id, "starts_at": "2026-10-01T18:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"},
+            {"court": court.id, "starts_at": "2030-10-01T18:00:00-03:00"},
         ]
     }
     response = client.post("/api/v1/orders/", data, format="json")
@@ -506,10 +506,10 @@ def test_lists_only_own_orders_with_total_for_customer_with_200():
     court = create_court()
     order = create_order(
         customer,
-        ["2026-10-01T08:00:00-03:00", "2026-10-01T18:00:00-03:00"],
+        ["2030-10-01T08:00:00-03:00", "2030-10-01T18:00:00-03:00"],
         court=court,
     )
-    create_order(other, ["2026-10-01T09:00:00-03:00"], court=court)
+    create_order(other, ["2030-10-01T09:00:00-03:00"], court=court)
     client.force_authenticate(user=customer)
     response = client.get("/api/v1/orders/")
     assert response.status_code == 200
@@ -524,8 +524,8 @@ def test_lists_every_order_for_staff_with_200():
     client = APIClient()
     staff = create_user("staff", role=Role.STAFF)
     court = create_court()
-    create_order(create_user("customer1"), ["2026-10-01T08:00:00-03:00"], court=court)
-    create_order(create_user("customer2"), ["2026-10-01T09:00:00-03:00"], court=court)
+    create_order(create_user("customer1"), ["2030-10-01T08:00:00-03:00"], court=court)
+    create_order(create_user("customer2"), ["2030-10-01T09:00:00-03:00"], court=court)
     client.force_authenticate(user=staff)
     response = client.get("/api/v1/orders/")
     assert response.status_code == 200
@@ -542,7 +542,7 @@ def test_rejects_anonymous_order_list_with_401():
 def test_retrieves_own_order_with_total_with_200():
     client = APIClient()
     customer = create_user("customer")
-    order = create_order(customer, ["2026-10-01T08:00:00-03:00"])
+    order = create_order(customer, ["2030-10-01T08:00:00-03:00"])
     client.force_authenticate(user=customer)
     response = client.get(f"/api/v1/orders/{order.id}/")
     assert response.status_code == 200
@@ -554,7 +554,7 @@ def test_retrieves_own_order_with_total_with_200():
 def test_hides_order_of_another_customer_with_404():
     client = APIClient()
     customer = create_user("customer")
-    order = create_order(create_user("other"), ["2026-10-01T08:00:00-03:00"])
+    order = create_order(create_user("other"), ["2030-10-01T08:00:00-03:00"])
     client.force_authenticate(user=customer)
     response = client.get(f"/api/v1/orders/{order.id}/")
     assert response.status_code == 404
@@ -565,9 +565,9 @@ def test_excludes_cancelled_bookings_from_total():
     client = APIClient()
     customer = create_user("customer")
     order = create_order(
-        customer, ["2026-10-01T08:00:00-03:00", "2026-10-01T18:00:00-03:00"]
+        customer, ["2030-10-01T08:00:00-03:00", "2030-10-01T18:00:00-03:00"]
     )
-    peak = datetime.fromisoformat("2026-10-01T18:00:00-03:00")
+    peak = datetime.fromisoformat("2030-10-01T18:00:00-03:00")
     order.bookings.filter(starts_at=peak).update(status=BookingStatus.CANCELLED)
     client.force_authenticate(user=customer)
     response = client.get(f"/api/v1/orders/{order.id}/")
@@ -578,7 +578,7 @@ def test_excludes_cancelled_bookings_from_total():
 def test_returns_zero_total_when_every_booking_is_cancelled():
     client = APIClient()
     customer = create_user("customer")
-    order = create_order(customer, ["2026-10-01T08:00:00-03:00"])
+    order = create_order(customer, ["2030-10-01T08:00:00-03:00"])
     order.bookings.update(status=BookingStatus.CANCELLED)
     client.force_authenticate(user=customer)
     response = client.get(f"/api/v1/orders/{order.id}/")
@@ -590,7 +590,7 @@ def test_returns_zero_total_when_every_booking_is_cancelled():
 def test_rejects_order_update_and_delete_with_405(method):
     client = APIClient()
     staff = create_user("staff", role=Role.STAFF)
-    order = create_order(create_user("customer"), ["2026-10-01T08:00:00-03:00"])
+    order = create_order(create_user("customer"), ["2030-10-01T08:00:00-03:00"])
     client.force_authenticate(user=staff)
     response = getattr(client, method)(f"/api/v1/orders/{order.id}/", {}, format="json")
     assert response.status_code == 405
@@ -600,7 +600,7 @@ def test_rejects_order_update_and_delete_with_405(method):
 def test_confirms_pending_order_for_staff_with_200():
     client = APIClient()
     staff = create_user("staff", role=Role.STAFF)
-    order = create_order(create_user("customer"), ["2026-10-01T08:00:00-03:00"])
+    order = create_order(create_user("customer"), ["2030-10-01T08:00:00-03:00"])
     client.force_authenticate(user=staff)
     response = client.post(f"/api/v1/orders/{order.id}/confirm/")
     assert response.status_code == 200
@@ -613,7 +613,7 @@ def test_confirms_pending_order_for_staff_with_200():
 def test_rejects_confirm_by_customer_with_403():
     client = APIClient()
     customer = create_user("customer")
-    order = create_order(customer, ["2026-10-01T08:00:00-03:00"])
+    order = create_order(customer, ["2030-10-01T08:00:00-03:00"])
     client.force_authenticate(user=customer)
     response = client.post(f"/api/v1/orders/{order.id}/confirm/")
     assert response.status_code == 403
@@ -627,7 +627,7 @@ def test_rejects_confirm_of_non_pending_order_with_409(status):
     client = APIClient()
     staff = create_user("staff", role=Role.STAFF)
     order = create_order(
-        create_user("customer"), ["2026-10-01T08:00:00-03:00"], status=status
+        create_user("customer"), ["2030-10-01T08:00:00-03:00"], status=status
     )
     client.force_authenticate(user=staff)
     response = client.post(f"/api/v1/orders/{order.id}/confirm/")
@@ -642,7 +642,7 @@ def test_cancels_pending_order_and_its_bookings_with_200(role):
     client = APIClient()
     customer = create_user("customer")
     order = create_order(
-        customer, ["2026-10-01T08:00:00-03:00", "2026-10-01T09:00:00-03:00"]
+        customer, ["2030-10-01T08:00:00-03:00", "2030-10-01T09:00:00-03:00"]
     )
     requester = customer if role == Role.CUSTOMER else create_user("staff", role=role)
     client.force_authenticate(user=requester)
@@ -660,7 +660,7 @@ def test_cancels_pending_order_and_its_bookings_with_200(role):
 def test_rejects_cancel_of_non_pending_order_with_409(status):
     client = APIClient()
     customer = create_user("customer")
-    order = create_order(customer, ["2026-10-01T08:00:00-03:00"], status=status)
+    order = create_order(customer, ["2030-10-01T08:00:00-03:00"], status=status)
     client.force_authenticate(user=customer)
     response = client.post(f"/api/v1/orders/{order.id}/cancel/")
     assert response.status_code == 409
@@ -672,7 +672,7 @@ def test_rejects_cancel_of_non_pending_order_with_409(status):
 @pytest.mark.django_db
 def test_rejects_cancel_of_another_customers_order_with_404():
     client = APIClient()
-    order = create_order(create_user("other"), ["2026-10-01T08:00:00-03:00"])
+    order = create_order(create_user("other"), ["2030-10-01T08:00:00-03:00"])
     client.force_authenticate(user=create_user("customer"))
     response = client.post(f"/api/v1/orders/{order.id}/cancel/")
     assert response.status_code == 404
