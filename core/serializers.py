@@ -32,6 +32,10 @@ class CourtSerializer(serializers.ModelSerializer):
 
 
 class BookingSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(
+        source="order.user", read_only=True, allow_null=True
+    )
+
     class Meta:
         model = Booking
         fields = [
@@ -40,9 +44,9 @@ class BookingSerializer(serializers.ModelSerializer):
             "starts_at",
             "ends_at",
             "created_by",
-            "user",
             "status",
             "kind",
+            "user",
             "reason",
             "order",
             "price_charged",
@@ -81,10 +85,6 @@ class BookingSerializer(serializers.ModelSerializer):
         elif not reason:
             raise serializers.ValidationError(
                 {"reason": "Reason must be provided for maintenance bookings."}
-            )
-        elif attrs.get("user"):
-            raise serializers.ValidationError(
-                {"user": "User must be empty for maintenance bookings."}
             )
         return attrs
 
@@ -164,7 +164,6 @@ class OrderSerializer(serializers.ModelSerializer):
                         Booking.objects.create(
                             **booking_data,
                             order=order,
-                            user=order.user,
                             created_by=order.created_by,
                             kind=BookingKind.CUSTOMER,
                             price_charged=price_charged,

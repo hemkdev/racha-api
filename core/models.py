@@ -112,9 +112,6 @@ class Court(models.Model):
 
 class Booking(models.Model):
     court = models.ForeignKey(Court, on_delete=models.PROTECT, related_name="bookings")
-    user = models.ForeignKey(
-        User, on_delete=models.PROTECT, null=True, blank=True, related_name="bookings"
-    )
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     status = models.CharField(
@@ -139,7 +136,7 @@ class Booking(models.Model):
     )
 
     def __str__(self):
-        user = self.user.username if self.user else "-"
+        user = self.order.user.username if self.order else "-"
         order = self.order_id if self.order_id else "-"
         return f"{user} - {self.court.name} ({self.starts_at} to {self.ends_at}, created by {self.created_by.username}), Order: {order}"
 
@@ -176,7 +173,6 @@ class Booking(models.Model):
             models.CheckConstraint(
                 condition=Q(
                     kind=BookingKind.CUSTOMER,
-                    user__isnull=False,
                     reason__exact="",
                     price_charged__gt=0,
                     price_charged__isnull=False,
@@ -184,7 +180,6 @@ class Booking(models.Model):
                 )
                 | Q(
                     kind=BookingKind.MAINTENANCE,
-                    user__isnull=True,
                     price_charged__isnull=True,
                     order__isnull=True,
                 )

@@ -13,15 +13,14 @@ class BookingAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "court",
-        "user",
         "starts_at",
         "ends_at",
         "created_by",
         "status",
     )
-    list_filter = ("status", "court", "user")
-    list_select_related = ("court", "user", "created_by")
-    search_fields = ("court__name", "user__username", "created_by__username")
+    list_filter = ("status", "court")
+    list_select_related = ("court", "created_by")
+    search_fields = ("court__name", "created_by__username")
 
 
 admin.site.register(User, ProfileUserAdmin)
