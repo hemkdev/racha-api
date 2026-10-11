@@ -500,6 +500,44 @@ def test_lists_only_own_bookings_for_customer_with_200():
 
 
 @pytest.mark.django_db
+def test_lists_every_booking_for_staff_with_200():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    customer1 = User.objects.create_user(
+        username="customer1", password="testpass", role=Role.CUSTOMER
+    )
+    customer2 = User.objects.create_user(
+        username="customer2", password="testpass", role=Role.CUSTOMER
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    booking1 = create_customer_booking(court, customer1, "2024-06-01T11:00:00Z")
+    booking2 = create_customer_booking(court, customer2, "2024-06-01T12:00:00Z")
+    maintenance = Booking.objects.create(
+        court=court,
+        starts_at=datetime(2024, 6, 1, 13, tzinfo=UTC),
+        ends_at=datetime(2024, 6, 1, 14, tzinfo=UTC),
+        created_by=staff,
+        **MAINTENANCE,
+    )
+    client.force_authenticate(user=staff)
+    response = client.get("/api/v1/bookings/")
+    assert response.status_code == 200
+    assert {booking["id"] for booking in response.data} == {
+        booking1.id,
+        booking2.id,
+        maintenance.id,
+    }
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "extra_data",
     [{}, MAINTENANCE],

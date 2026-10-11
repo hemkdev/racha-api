@@ -141,7 +141,10 @@ class OrderSerializer(serializers.ModelSerializer):
         bookings_data = validated_data.pop("bookings")
         with transaction.atomic():
             order = Order.objects.create(**validated_data)
-            for index, booking_data in enumerate(bookings_data):
+            for index, booking_data in sorted(
+                enumerate(bookings_data),
+                key=lambda pair: (pair[1]["court"].id, pair[1]["starts_at"]),
+            ):
                 price_charged = booking_data["court"].price_at(
                     booking_data["starts_at"]
                 )
@@ -155,14 +158,18 @@ class OrderSerializer(serializers.ModelSerializer):
                             kind=BookingKind.CUSTOMER,
                             price_charged=price_charged,
                         )
-                except IntegrityError:
-                    raise serializers.ValidationError(
-                        {
-                            "bookings": {
-                                index: {
-                                    "starts_at": "This court is already booked for the selected time slot."
+                except IntegrityError as error:
+                    if "unique_booking_per_court_time" in str(error):
+                        raise serializers.ValidationError(
+                            {
+                                "bookings": {
+                                    index: {
+                                        "starts_at": [
+                                            "This court is already booked for the selected time slot."
+                                        ]
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    raise
         return Order.objects.with_total().get(pk=order.id)
