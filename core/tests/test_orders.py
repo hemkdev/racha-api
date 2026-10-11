@@ -144,7 +144,7 @@ def test_charges_peak_price_of_most_expensive_court_with_201():
     client = APIClient()
     customer = create_user("customer")
     court = create_court()
-    court.hour_price = Decimal("9999.99")
+    court.hour_price = Decimal("9999.50")
     court.save()
     client.force_authenticate(user=customer)
     starts_at = "2030-10-01T18:00:00-03:00"

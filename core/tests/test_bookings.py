@@ -348,6 +348,7 @@ def test_accepts_maintenance_without_user_at_database_level():
         (BookingKind.MAINTENANCE, False, True, False, "Net repair"),
         (BookingKind.MAINTENANCE, False, False, True, "Net repair"),
         (BookingKind.MAINTENANCE, False, False, False, ""),
+        (BookingKind.MAINTENANCE, False, False, False, "   "),
         ("EVENT", True, True, True, ""),
     ],
 )

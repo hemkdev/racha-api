@@ -430,3 +430,74 @@ def test_list_shows_slot_prices_with_200():
     assert response.status_code == 200
     prices = [slot["price"] for slot in response.json()["slots"]]
     assert prices == ["50.00"] * 10 + ["75.00"] * 4
+
+
+def create_staff_client():
+    client = APIClient()
+    staff = User.objects.create(
+        username="staff", email="staff@example.com", role=Role.STAFF
+    )
+    client.force_authenticate(user=staff)
+    return client, staff
+
+
+def create_volleyball_court():
+    return Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("hour_price", ["50.50", "0.50", "9999.50"])
+def test_accepts_price_in_half_real_steps_at_database_level(hour_price):
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.SOCCER,
+        tier=Tier.BASIC,
+        hour_price=Decimal(hour_price),
+    )
+    assert court.pk is not None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("hour_price", ["49.99", "50.25", "0.01"])
+def test_rejects_price_off_half_real_steps_at_database_level(hour_price):
+    with (
+        pytest.raises(IntegrityError, match="court_hour_price_half_steps"),
+        transaction.atomic(),
+    ):
+        Court.objects.create(
+            name="Court 1",
+            sport=Sport.SOCCER,
+            tier=Tier.BASIC,
+            hour_price=Decimal(hour_price),
+        )
+
+
+@pytest.mark.django_db
+def test_rejects_price_off_half_real_steps_on_creation_with_400():
+    client, _ = create_staff_client()
+    response = client.post(
+        "/api/v1/courts/",
+        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "49.99"},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "hour_price" in response.data
+    assert not Court.objects.exists()
+
+
+@pytest.mark.django_db
+def test_rejects_price_off_half_real_steps_on_update_with_400():
+    client, _ = create_staff_client()
+    court = create_volleyball_court()
+    response = client.patch(f"/api/v1/courts/{court.id}/", {"hour_price": "49.99"})
+    assert response.status_code == 400
+    assert "hour_price" in response.data
+    court.refresh_from_db()
+    assert court.hour_price == Decimal("50.00")
+
