@@ -15,7 +15,7 @@ from core.models import (
     Tier,
     User,
 )
-from core.tests.helpers import create_customer_booking
+from core.tests.helpers import create_customer_booking, freeze_now
 
 
 @pytest.mark.django_db
@@ -501,3 +501,60 @@ def test_rejects_price_off_half_real_steps_on_update_with_400():
     court.refresh_from_db()
     assert court.hour_price == Decimal("50.00")
 
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("kind", [BookingKind.CUSTOMER, BookingKind.MAINTENANCE])
+def test_rejects_deactivating_court_with_future_booking_with_409(kind):
+    client, staff = create_staff_client()
+    court = create_volleyball_court()
+    if kind == BookingKind.CUSTOMER:
+        customer = User.objects.create(username="customer", role=Role.CUSTOMER)
+        create_customer_booking(court, customer, "2030-10-01T09:00:00-03:00")
+    else:
+        Booking.objects.create(
+            court=court,
+            starts_at=datetime.fromisoformat("2030-10-01T09:00:00-03:00"),
+            ends_at=datetime.fromisoformat("2030-10-01T10:00:00-03:00"),
+            created_by=staff,
+            kind=BookingKind.MAINTENANCE,
+            reason="Net repair",
+        )
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.patch(f"/api/v1/courts/{court.id}/", {"is_active": False})
+    assert response.status_code == 409
+    court.refresh_from_db()
+    assert court.is_active is True
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "starts_at, status",
+    [
+        ("2030-10-01T08:00:00-03:00", BookingStatus.ACTIVE),
+        ("2030-10-01T09:00:00-03:00", BookingStatus.CANCELLED),
+    ],
+    ids=["started_booking", "cancelled_future_booking"],
+)
+def test_deactivates_court_without_future_active_booking_with_200(starts_at, status):
+    client, _ = create_staff_client()
+    court = create_volleyball_court()
+    customer = User.objects.create(username="customer", role=Role.CUSTOMER)
+    create_customer_booking(court, customer, starts_at, status=status)
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.patch(f"/api/v1/courts/{court.id}/", {"is_active": False})
+    assert response.status_code == 200
+    court.refresh_from_db()
+    assert court.is_active is False
+
+
+@pytest.mark.django_db
+def test_updates_court_with_future_booking_when_not_deactivating_with_200():
+    client, _ = create_staff_client()
+    court = create_volleyball_court()
+    customer = User.objects.create(username="customer", role=Role.CUSTOMER)
+    create_customer_booking(court, customer, "2030-10-01T09:00:00-03:00")
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.patch(f"/api/v1/courts/{court.id}/", {"hour_price": "60.00"})
+    assert response.status_code == 200
+    court.refresh_from_db()
+    assert court.hour_price == Decimal("60.00")
