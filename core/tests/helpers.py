@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from unittest import mock
+from zoneinfo import ZoneInfo
 
 from core.models import Booking, Order
 
@@ -18,3 +20,10 @@ def create_customer_booking(court, user, starts_at, created_by=None, **extra):
     if "order" not in fields:
         fields["order"] = Order.objects.create(user=user, created_by=created_by)
     return Booking.objects.create(**fields)
+
+
+def freeze_now(local_iso):
+    moment = datetime.fromisoformat(local_iso).replace(
+        tzinfo=ZoneInfo("America/Sao_Paulo")
+    )
+    return mock.patch("django.utils.timezone.now", return_value=moment)

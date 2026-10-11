@@ -19,7 +19,7 @@ from core.models import (
     Tier,
     User,
 )
-from core.tests.helpers import create_customer_booking
+from core.tests.helpers import create_customer_booking, freeze_now
 
 SLOT_TAKEN = "This court is already booked for the selected time slot."
 
@@ -678,3 +678,61 @@ def test_rejects_cancel_of_another_customers_order_with_404():
     assert response.status_code == 404
     order.refresh_from_db()
     assert order.status == OrderStatus.PENDING
+
+
+@pytest.mark.django_db
+def test_rejects_order_with_past_slot_with_400():
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    client.force_authenticate(user=customer)
+    data = {
+        "bookings": [
+            {"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"},
+            {"court": court.id, "starts_at": "2020-10-01T08:00:00-03:00"},
+        ]
+    }
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 400
+    errors = response.data["bookings"]
+    assert set(errors) == {1}
+    assert "starts_at" in errors[1]
+    assert_nothing_created()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "starts_at, expected_status",
+    [
+        ("2030-10-01T08:00:00-03:00", 400),
+        ("2030-10-01T09:00:00-03:00", 201),
+    ],
+    ids=["slot_already_started", "next_slot"],
+)
+def test_rejects_slot_that_already_started(starts_at, expected_status):
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    client.force_authenticate(user=customer)
+    data = {"bookings": [{"court": court.id, "starts_at": starts_at}]}
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == expected_status
+    if expected_status == 400:
+        assert "starts_at" in response.data["bookings"][0]
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_order_with_started_booking_with_409():
+    client = APIClient()
+    customer = create_user("customer")
+    order = create_order(
+        customer, ["2030-10-01T08:00:00-03:00", "2030-10-01T09:00:00-03:00"]
+    )
+    client.force_authenticate(user=customer)
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.post(f"/api/v1/orders/{order.id}/cancel/")
+    assert response.status_code == 409
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PENDING
+    assert order.bookings.filter(status=BookingStatus.ACTIVE).count() == 2

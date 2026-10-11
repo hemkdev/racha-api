@@ -18,7 +18,7 @@ from core.models import (
     Tier,
     User,
 )
-from core.tests.helpers import create_customer_booking
+from core.tests.helpers import create_customer_booking, freeze_now
 
 MAINTENANCE = {"kind": BookingKind.MAINTENANCE, "reason": "Net repair"}
 
@@ -905,3 +905,70 @@ def test_rejects_anonymous_booking_cancel_with_401():
     _, _, _, (booking,) = create_cancel_scenario()
     response = APIClient().post(f"/api/v1/bookings/{booking.id}/cancel/")
     assert response.status_code == 401
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "starts_at, expected_status",
+    [
+        ("2020-10-01T08:00:00-03:00", 400),
+        ("2030-10-01T08:00:00-03:00", 400),
+        ("2030-10-01T09:00:00-03:00", 201),
+    ],
+    ids=["past", "slot_already_started", "next_slot"],
+)
+def test_rejects_maintenance_in_the_past(starts_at, expected_status):
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    court = Court.objects.create(
+        name="Court 1",
+        sport=Sport.VOLLEYBALL,
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+        is_active=True,
+    )
+    client.force_authenticate(user=staff)
+    booking_data = MAINTENANCE | {"court": court.id, "starts_at": starts_at}
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.post("/api/v1/bookings/", booking_data)
+    assert response.status_code == expected_status
+    if expected_status == 400:
+        assert "starts_at" in response.data
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_started_customer_booking_with_409():
+    client = APIClient()
+    customer, _, order, (booking,) = create_cancel_scenario()
+    client.force_authenticate(user=customer)
+    with freeze_now("2030-10-01T08:10:00"):
+        response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 409
+    booking.refresh_from_db()
+    order.refresh_from_db()
+    assert booking.status == BookingStatus.ACTIVE
+    assert order.status == OrderStatus.PENDING
+
+
+@pytest.mark.django_db
+def test_rejects_cancel_of_started_maintenance_with_409():
+    client = APIClient()
+    staff = User.objects.create_user(
+        username="staff", password="testpass", role=Role.STAFF
+    )
+    _, court, _, _ = create_cancel_scenario()
+    booking = Booking.objects.create(
+        court=court,
+        starts_at=datetime(2030, 10, 1, 15, tzinfo=UTC),
+        ends_at=datetime(2030, 10, 1, 16, tzinfo=UTC),
+        created_by=staff,
+        **MAINTENANCE,
+    )
+    client.force_authenticate(user=staff)
+    with freeze_now("2030-10-01T12:30:00"):
+        response = client.post(f"/api/v1/bookings/{booking.id}/cancel/")
+    assert response.status_code == 409
+    booking.refresh_from_db()
+    assert booking.status == BookingStatus.ACTIVE
