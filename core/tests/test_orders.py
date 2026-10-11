@@ -1,9 +1,10 @@
+import threading
 from datetime import datetime
 from decimal import Decimal
 from unittest import mock
 
 import pytest
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from rest_framework.test import APIClient
 
 from core.models import (
@@ -377,6 +378,76 @@ def test_does_not_mask_other_constraint_as_slot_taken():
     ):
         client.post("/api/v1/orders/", data, format="json")
     assert_nothing_created()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize(
+    ("second_court_name", "second_starts_at"),
+    [
+        (None, "2026-10-01T09:00:00-03:00"),
+        ("Court 2", "2026-10-01T08:00:00-03:00"),
+    ],
+    ids=["same_court_other_hour", "other_court_same_hour"],
+)
+def test_concurrent_orders_with_reversed_slots_do_not_deadlock(
+    second_court_name, second_starts_at
+):
+    # Two orders ask for the same two slots in reverse order. Each one inserts
+    # its first slot, then both wait at the barrier before inserting the second:
+    # inserting in request order makes each wait for the other's lock (deadlock).
+    # With a fixed insert order both fight for the same first slot instead, so
+    # the barrier never fills; the timeout lets the winner go on.
+    court = create_court()
+    second_court = create_court(second_court_name) if second_court_name else court
+    customers = {"a": create_user("customer_a"), "b": create_user("customer_b")}
+    first = {"court": court.id, "starts_at": "2026-10-01T08:00:00-03:00"}
+    second = {"court": second_court.id, "starts_at": second_starts_at}
+    payloads = {"a": [first, second], "b": [second, first]}
+    barrier = threading.Barrier(2, timeout=2)
+    calls = {}
+    original_price_at = Court.price_at
+    results = {}
+
+    def price_at_with_barrier(self, starts_at):
+        thread = threading.get_ident()
+        calls[thread] = calls.get(thread, 0) + 1
+        if calls[thread] == 2:
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                pass
+        return original_price_at(self, starts_at)
+
+    def place_order(name):
+        client = APIClient()
+        client.force_authenticate(user=customers[name])
+        try:
+            results[name] = client.post(
+                "/api/v1/orders/", {"bookings": payloads[name]}, format="json"
+            )
+        except Exception as error:
+            results[name] = error
+        finally:
+            connection.close()
+
+    with mock.patch.object(Court, "price_at", autospec=True) as price_at:
+        price_at.side_effect = price_at_with_barrier
+        threads = [threading.Thread(target=place_order, args=(n,)) for n in "ab"]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    for result in results.values():
+        assert not isinstance(result, Exception), repr(result)
+    statuses = sorted(response.status_code for response in results.values())
+    assert statuses == [201, 400]
+    loser = next(n for n, response in results.items() if response.status_code == 400)
+    contested = payloads[loser].index(first)
+    errors = results[loser].data["bookings"]
+    assert errors == {contested: {"starts_at": [SLOT_TAKEN]}}
+    assert Order.objects.count() == 1
+    assert Booking.objects.count() == 2
 
 
 def create_order(user, slots, court=None, status=OrderStatus.PENDING):
