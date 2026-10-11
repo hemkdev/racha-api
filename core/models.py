@@ -114,7 +114,7 @@ class Booking(models.Model):
         max_length=20, choices=BookingStatus, default=BookingStatus.ACTIVE
     )
     price_charged = models.DecimalField(
-        max_digits=6, decimal_places=2, null=True, blank=True
+        max_digits=7, decimal_places=2, null=True, blank=True
     )
     kind = models.CharField(
         max_length=20, choices=BookingKind, default=BookingKind.CUSTOMER
