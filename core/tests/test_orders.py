@@ -140,6 +140,23 @@ def test_charges_peak_price_by_local_hour_with_201():
 
 
 @pytest.mark.django_db
+def test_charges_peak_price_of_most_expensive_court_with_201():
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    court.hour_price = Decimal("9999.99")
+    court.save()
+    client.force_authenticate(user=customer)
+    starts_at = "2026-10-01T18:00:00-03:00"
+    data = {"bookings": [{"court": court.id, "starts_at": starts_at}]}
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 201
+    expected = court.price_at(datetime.fromisoformat(starts_at))
+    assert expected > Decimal("9999.99")
+    assert Booking.objects.get().price_charged == expected
+
+
+@pytest.mark.django_db
 def test_keeps_price_charged_when_court_price_changes():
     client = APIClient()
     customer = create_user("customer")
