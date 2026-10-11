@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from rest_framework import serializers
 
 from core.models import (
@@ -64,6 +65,8 @@ class BookingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Booking must start at the beginning of an hour."
             )
+        if value <= timezone.now():
+            raise serializers.ValidationError("Booking must be in the future.")
         return value
 
     def validate(self, attrs):

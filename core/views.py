@@ -115,6 +115,11 @@ class BookingViewSet(
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+        if booking.starts_at <= timezone.now():
+            return Response(
+                {"detail": "Cannot cancel this booking because it has already started."},
+                status=status.HTTP_409_CONFLICT,
+            )
         with transaction.atomic():
             booking.status = BookingStatus.CANCELLED
             booking.save(update_fields=["status"])
@@ -171,6 +176,11 @@ class OrderViewSet(
         if order.status != OrderStatus.PENDING:
             return Response(
                 {"detail": "Only pending orders can be cancelled."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if order.bookings.filter(status=BookingStatus.ACTIVE).filter(starts_at__lte=timezone.now()).exists():
+            return Response(
+                {"detail": "Cannot cancel this order because it has active bookings that have already started."},
                 status=status.HTTP_409_CONFLICT,
             )
         with transaction.atomic():
