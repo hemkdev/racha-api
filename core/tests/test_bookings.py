@@ -28,7 +28,7 @@ def test_accepts_valid_booking_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -45,7 +45,7 @@ def test_rejects_duplicate_booking_active_slot_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -63,7 +63,7 @@ def test_accepts_slot_reuse_after_cancellation_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -85,7 +85,7 @@ def test_rejects_duplicate_active_slot_with_400():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -109,7 +109,7 @@ def test_accepts_slot_reuse_after_cancellation_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -132,7 +132,7 @@ def test_rejects_booking_without_full_hour_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -151,7 +151,7 @@ def test_rejects_booking_with_fractional_seconds_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -170,7 +170,7 @@ def test_rejects_booking_with_duration_other_than_one_hour_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -189,7 +189,7 @@ def test_accepts_back_to_back_bookings_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -209,7 +209,7 @@ def test_derives_ends_at_one_hour_after_starts_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -233,7 +233,7 @@ def test_rejects_booking_off_the_hour_with_400():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -256,7 +256,7 @@ def test_rejects_booking_with_fractional_seconds_with_400():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -279,7 +279,7 @@ def test_ignores_client_ends_at_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -301,7 +301,7 @@ def test_rejects_invalid_status_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -320,7 +320,7 @@ def test_accepts_maintenance_without_order_at_database_level():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -356,7 +356,7 @@ def test_rejects_kind_mismatching_fields_at_database_level(
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -388,7 +388,7 @@ def test_accepts_booking_created_by_staff_for_a_customer_at_database_level():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -433,7 +433,7 @@ def test_rejects_deleting_order_with_bookings_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -456,7 +456,7 @@ def test_rejects_anonymous_booking_creation_with_401():
     client = APIClient()
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -481,7 +481,7 @@ def test_lists_only_own_bookings_for_customer_with_200():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -512,7 +512,7 @@ def test_lists_every_booking_for_staff_with_200():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -548,7 +548,7 @@ def test_rejects_booking_creation_for_customer_with_403(extra_data):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -568,7 +568,7 @@ def test_accepts_maintenance_for_staff_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -613,7 +613,7 @@ def test_rejects_non_maintenance_fields_for_staff_with_400(
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -636,7 +636,7 @@ def test_ignores_user_order_and_price_in_body_for_staff_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -669,7 +669,7 @@ def test_ignores_created_by_in_body_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -694,7 +694,7 @@ def test_rejects_booking_delete_with_405():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -720,7 +720,7 @@ def test_rejects_booking_update_with_405():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -763,7 +763,7 @@ def test_validates_working_hours_boundaries(starts_at, expected_status):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -784,7 +784,7 @@ def create_cancel_scenario(order_status=OrderStatus.PENDING, slots=1):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -923,7 +923,7 @@ def test_rejects_maintenance_in_the_past(starts_at, expected_status):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,

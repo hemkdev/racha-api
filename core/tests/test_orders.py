@@ -27,7 +27,7 @@ SLOT_TAKEN = "This court is already booked for the selected time slot."
 def create_court(name="Court 1", is_active=True):
     return Court.objects.create(
         name=name,
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=is_active,

@@ -66,7 +66,7 @@ def test_accepts_bearer_token_court_creation_with_201():
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {access_token}")
     response2 = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "50.00"},
+        {"name": "X", "sports": ["FUTSAL"], "tier": "BASIC", "hour_price": "50.00"},
         format="json",
     )
     assert response2.status_code == 201
