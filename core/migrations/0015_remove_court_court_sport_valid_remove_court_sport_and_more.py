@@ -12,13 +12,6 @@ def copy_sport_to_sports(apps, schema_editor):
         court.save(update_fields=['sports'])
 
 
-def copy_sports_to_sport(apps, schema_editor):
-    Court = apps.get_model('core', 'Court')
-    for court in Court.objects.all():
-        court.sport = court.sports[0]
-        court.save(update_fields=['sport'])
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -36,7 +29,7 @@ class Migration(migrations.Migration):
             field=django.contrib.postgres.fields.ArrayField(base_field=models.CharField(choices=[('FUTSAL', 'Futsal'), ('SOCIETY', 'Society'), ('BASKETBALL', 'Basketball'), ('VOLLEYBALL', 'Volleyball'), ('BEACH_VOLLEYBALL', 'Beach Volleyball'), ('FOOTVOLLEY', 'Footvolley'), ('BEACH_TENNIS', 'Beach Tennis')], max_length=20), default=[], size=None),
             preserve_default=False,
         ),
-        migrations.RunPython(copy_sport_to_sports, copy_sports_to_sport),
+        migrations.RunPython(copy_sport_to_sports),
         migrations.RemoveField(
             model_name='court',
             name='sport',
