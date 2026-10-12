@@ -1,11 +1,15 @@
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
 from rest_framework.test import APIClient
 
 from core.models import (
+    Booking,
+    BookingKind,
     Court,
     Order,
+    OrderStatus,
     Role,
     Sport,
     Tier,
@@ -143,6 +147,96 @@ def test_orders_orders_by_total():
     create_customer_booking(court, customer, "2030-10-01T10:00:00-03:00", order=cheap)
     response = client.get("/api/v1/orders/?ordering=total")
     assert [order["id"] for order in results(response)] == [cheap.id, expensive.id]
+
+
+# Filters
+
+
+@pytest.mark.django_db
+def test_filters_courts_by_one_of_their_sports():
+    sand = create_court("Sand", sports=[Sport.BEACH_TENNIS, Sport.FOOTVOLLEY])
+    create_court("Indoor", sports=[Sport.FUTSAL])
+    response = APIClient().get("/api/v1/courts/?sport=FOOTVOLLEY")
+    assert [court["id"] for court in results(response)] == [sand.id]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "query, expected",
+    [("tier=PREMIUM", ["Premium"]), ("is_active=false", ["Closed"])],
+)
+def test_filters_courts_by_tier_and_activity(query, expected):
+    create_court("Basic")
+    create_court("Premium", tier=Tier.PREMIUM)
+    create_court("Closed", is_active=False)
+    response = APIClient().get(f"/api/v1/courts/?{query}")
+    assert [court["name"] for court in results(response)] == expected
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "path, param",
+    [
+        ("/api/v1/courts/?sport=CURLING", "sport"),
+        ("/api/v1/courts/?tier=GOLD", "tier"),
+        ("/api/v1/courts/?is_active=maybe", "is_active"),
+        ("/api/v1/bookings/?from=yesterday", "from"),
+        ("/api/v1/bookings/?from=2030-10-02&to=2030-10-01", "to"),
+        ("/api/v1/orders/?status=REFUNDED", "status"),
+        ("/api/v1/orders/?to=2030-13-01", "to"),
+    ],
+)
+def test_rejects_invalid_filter_with_400(path, param):
+    client, _ = staff_client()
+    response = client.get(path)
+    assert response.status_code == 400
+    assert param in response.data
+
+
+@pytest.mark.django_db
+def test_filters_bookings_by_local_day_period():
+    client, staff = staff_client()
+    customer = User.objects.create_user(username="customer", role=Role.CUSTOMER)
+    court = create_court("Court 1")
+    create_customer_booking(court, customer, "2030-09-30T21:00:00-03:00")
+    first = create_customer_booking(court, customer, "2030-10-01T08:00:00-03:00")
+    # 21:00 local on October 1st is already October 2nd in UTC.
+    last = create_customer_booking(court, customer, "2030-10-01T21:00:00-03:00")
+    maintenance = Booking.objects.create(
+        court=court,
+        starts_at=datetime.fromisoformat("2030-10-01T12:00:00-03:00"),
+        ends_at=datetime.fromisoformat("2030-10-01T13:00:00-03:00"),
+        created_by=staff,
+        kind=BookingKind.MAINTENANCE,
+        reason="Net repair",
+    )
+    create_customer_booking(court, customer, "2030-10-02T08:00:00-03:00")
+    response = client.get("/api/v1/bookings/?from=2030-10-01&to=2030-10-01")
+    assert [b["id"] for b in results(response)] == [first.id, maintenance.id, last.id]
+
+
+@pytest.mark.django_db
+def test_filters_orders_by_status_and_creation_period():
+    client, _ = staff_client()
+    customer = User.objects.create_user(username="customer", role=Role.CUSTOMER)
+    with freeze_now("2030-09-30T23:30:00"):
+        Order.objects.create(user=customer, created_by=customer)
+    with freeze_now("2030-10-01T10:00:00"):
+        pending = Order.objects.create(user=customer, created_by=customer)
+        Order.objects.create(
+            user=customer, created_by=customer, status=OrderStatus.PAID
+        )
+    response = client.get("/api/v1/orders/?status=PENDING&from=2030-10-01")
+    assert [order["id"] for order in results(response)] == [pending.id]
+
+
+@pytest.mark.django_db
+def test_counts_only_filtered_rows():
+    for index in range(3):
+        create_court(f"Futsal {index}", sports=[Sport.FUTSAL])
+    create_court("Volleyball")
+    response = APIClient().get("/api/v1/courts/?sport=FUTSAL")
+    assert response.data["count"] == 3
 
 
 # Search

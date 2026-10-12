@@ -681,3 +681,16 @@ def test_sports_migration_copies_each_court_sport():
         ["BASKETBALL"],
     ]
     assert all(court.saved_fields == ["sports"] for court in courts)
+
+
+@pytest.mark.django_db
+def test_reactivates_inactive_court_as_staff_with_200():
+    client, _ = create_staff_client()
+    court = create_volleyball_court()
+    court.is_active = False
+    court.save()
+    assert client.get(f"/api/v1/courts/{court.id}/").status_code == 200
+    response = client.patch(f"/api/v1/courts/{court.id}/", {"is_active": True})
+    assert response.status_code == 200
+    court.refresh_from_db()
+    assert court.is_active is True
