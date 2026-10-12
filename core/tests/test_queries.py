@@ -8,6 +8,7 @@ from core.tests.helpers import create_customer_booking
 
 # Each list must run a fixed number of queries, whatever the number of rows.
 # The same count for 1 and for 5 rows is what proves there is no N+1.
+# Every paginated list adds one COUNT query for the "count" field.
 ROWS = [1, 5]
 
 
@@ -34,10 +35,10 @@ def create_orders(customer, count, bookings_per_order=2):
 @pytest.mark.django_db
 @pytest.mark.parametrize("rows", ROWS)
 @pytest.mark.parametrize("role", [Role.CUSTOMER, Role.STAFF])
-def test_lists_orders_with_their_bookings_and_total_in_two_queries(
+def test_lists_orders_with_their_bookings_and_total_in_three_queries(
     django_assert_num_queries, rows, role
 ):
-    # One query for the orders with the annotated total, one for their bookings.
+    # The count, the orders with the annotated total, and their bookings.
     customer = User.objects.create_user(username="customer", role=Role.CUSTOMER)
     create_orders(customer, rows)
     requester = (
@@ -47,16 +48,16 @@ def test_lists_orders_with_their_bookings_and_total_in_two_queries(
     )
     client = APIClient()
     client.force_authenticate(user=requester)
-    with django_assert_num_queries(2):
+    with django_assert_num_queries(3):
         response = client.get("/api/v1/orders/")
     assert response.status_code == 200
-    assert len(response.data) == rows
+    assert response.data["count"] == rows
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("rows", ROWS)
 @pytest.mark.parametrize("role", [Role.CUSTOMER, Role.STAFF])
-def test_lists_bookings_in_one_query(django_assert_num_queries, rows, role):
+def test_lists_bookings_in_two_queries(django_assert_num_queries, rows, role):
     # The owner is read through the order: it must come in the same query.
     customer = User.objects.create_user(username="customer", role=Role.CUSTOMER)
     create_orders(customer, rows, bookings_per_order=1)
@@ -67,19 +68,19 @@ def test_lists_bookings_in_one_query(django_assert_num_queries, rows, role):
     )
     client = APIClient()
     client.force_authenticate(user=requester)
-    with django_assert_num_queries(1):
+    with django_assert_num_queries(2):
         response = client.get("/api/v1/bookings/")
     assert response.status_code == 200
-    assert len(response.data) == rows
-    assert all(booking["user"] == customer.id for booking in response.data)
+    assert response.data["count"] == rows
+    assert all(booking["user"] == customer.id for booking in response.data["results"])
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("rows", ROWS)
-def test_lists_courts_in_one_query(django_assert_num_queries, rows):
+def test_lists_courts_in_two_queries(django_assert_num_queries, rows):
     for index in range(rows):
         create_court(f"Court {index}")
-    with django_assert_num_queries(1):
+    with django_assert_num_queries(2):
         response = APIClient().get("/api/v1/courts/")
     assert response.status_code == 200
-    assert len(response.data) == rows
+    assert response.data["count"] == rows

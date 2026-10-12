@@ -80,7 +80,7 @@ def test_list_courts_with_200():
     response = APIClient().get("/api/v1/courts/")
 
     assert response.status_code == 200
-    assert len(response.data) == 1
+    assert response.data["count"] == 1
 
 
 @pytest.mark.django_db
