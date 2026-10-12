@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -30,6 +31,10 @@ class Conflict(APIException):
 
 
 class CourtViewSet(viewsets.ModelViewSet):
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["name"]
+    ordering_fields = ["name", "hour_price"]
+    ordering = ["name"]
     queryset = Court.objects.all()
     serializer_class = CourtSerializer
     permission_classes = [IsStaffRoleOrReadOnly]
@@ -103,6 +108,14 @@ class BookingViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
+    filter_backends = [OrderingFilter]
+    ordering_fields = [
+        "court__name",
+        "starts_at",
+        "order__user__username",
+        "created_by__username",
+    ]
+    ordering = ["starts_at", "-id"]
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
     permission_classes = [IsAuthenticated, IsStaffRoleOrReadOnly]
@@ -161,6 +174,15 @@ class OrderViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
+    filter_backends = [OrderingFilter]
+    ordering_fields = [
+        "user__username",
+        "status",
+        "created_by__username",
+        "created_at",
+        "total",
+    ]
+    ordering = ["-created_at", "-id"]
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
