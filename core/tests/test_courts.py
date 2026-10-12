@@ -1,3 +1,4 @@
+import importlib
 from datetime import datetime
 from decimal import Decimal
 
@@ -640,3 +641,43 @@ def test_rejects_invalid_sports_list_with_400(sports):
     assert response.status_code == 400
     assert "sports" in response.data
     assert not Court.objects.exists()
+
+
+class FakeCourt:
+    def __init__(self, sport):
+        self.sport = sport
+        self.saved_fields = None
+
+    def save(self, update_fields):
+        self.saved_fields = update_fields
+
+
+class FakeApps:
+    def __init__(self, courts):
+        self.courts = courts
+
+    def get_model(self, app_label, model_name):
+        assert (app_label, model_name) == ("core", "Court")
+        courts = self.courts
+
+        class Manager:
+            def all(self):
+                return courts
+
+        return type("Court", (), {"objects": Manager()})
+
+
+def test_sports_migration_copies_each_court_sport():
+    # Migration 0015 is irreversible and the test database is born already
+    # migrated, so its data copy is checked by calling the function directly.
+    migration = importlib.import_module(
+        "core.migrations.0015_remove_court_court_sport_valid_remove_court_sport_and_more"
+    )
+    courts = [FakeCourt("SOCCER"), FakeCourt("VOLLEYBALL"), FakeCourt("BASKETBALL")]
+    migration.copy_sport_to_sports(FakeApps(courts), schema_editor=None)
+    assert [court.sports for court in courts] == [
+        ["FUTSAL"],
+        ["VOLLEYBALL"],
+        ["BASKETBALL"],
+    ]
+    assert all(court.saved_fields == ["sports"] for court in courts)
