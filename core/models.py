@@ -2,6 +2,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.fields import ArrayField
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q, Sum
@@ -18,9 +19,13 @@ models.CharField.register_lookup(Trim)
 
 
 class Sport(models.TextChoices):
-    VOLLEYBALL = "VOLLEYBALL"
+    FUTSAL = "FUTSAL"
+    SOCIETY = "SOCIETY"
     BASKETBALL = "BASKETBALL"
-    SOCCER = "SOCCER"
+    VOLLEYBALL = "VOLLEYBALL"
+    BEACH_VOLLEYBALL = "BEACH_VOLLEYBALL"
+    FOOTVOLLEY = "FOOTVOLLEY"
+    BEACH_TENNIS = "BEACH_TENNIS"
 
 
 class Tier(models.TextChoices):
@@ -76,7 +81,7 @@ class User(AbstractUser):
 
 class Court(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    sport = models.CharField(max_length=20, choices=Sport)
+    sports = ArrayField(models.CharField(max_length=20, choices=Sport))
     tier = models.CharField(max_length=20, choices=Tier)
     hour_price = models.DecimalField(
         max_digits=6, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
@@ -98,7 +103,11 @@ class Court(models.Model):
                 condition=Q(hour_price__gt=0), name="court_hour_price_positive"
             ),
             models.CheckConstraint(
-                condition=Q(sport__in=Sport.values), name="court_sport_valid"
+                condition=Q(sports__contained_by=Sport.values),
+                name="court_sports_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(sports__len__gt=0), name="court_sports_not_empty"
             ),
             models.CheckConstraint(
                 condition=Q(tier__in=Tier.values), name="court_tier_valid"

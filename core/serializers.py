@@ -20,13 +20,22 @@ from core.models import (
 class CourtSerializer(serializers.ModelSerializer):
     class Meta:
         model = Court
-        fields = ["id", "name", "sport", "tier", "hour_price", "is_active"]
+        fields = ["id", "name", "sports", "tier", "hour_price", "is_active"]
         read_only_fields = ["id"]
 
     def validate_hour_price(self, value):
         if value % Decimal("0.50") != 0:
             raise serializers.ValidationError(
                 "Court hour price must be in increments of 0.50."
+            )
+        return value
+
+    def validate_sports(self, value):
+        if not value:
+            raise serializers.ValidationError("Court must have at least one sport.")
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Duplicate sports for the same court are not allowed."
             )
         return value
 
