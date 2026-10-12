@@ -28,7 +28,7 @@ def test_accepts_valid_booking_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -45,7 +45,7 @@ def test_rejects_duplicate_booking_active_slot_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -63,7 +63,7 @@ def test_accepts_slot_reuse_after_cancellation_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -85,7 +85,7 @@ def test_rejects_duplicate_active_slot_with_400():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -109,7 +109,7 @@ def test_accepts_slot_reuse_after_cancellation_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -132,7 +132,7 @@ def test_rejects_booking_without_full_hour_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -151,7 +151,7 @@ def test_rejects_booking_with_fractional_seconds_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -170,7 +170,7 @@ def test_rejects_booking_with_duration_other_than_one_hour_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -189,7 +189,7 @@ def test_accepts_back_to_back_bookings_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -209,7 +209,7 @@ def test_derives_ends_at_one_hour_after_starts_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -233,7 +233,7 @@ def test_rejects_booking_off_the_hour_with_400():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -256,7 +256,7 @@ def test_rejects_booking_with_fractional_seconds_with_400():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -279,7 +279,7 @@ def test_ignores_client_ends_at_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -301,7 +301,7 @@ def test_rejects_invalid_status_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -314,13 +314,13 @@ def test_rejects_invalid_status_at_database_level():
 
 
 @pytest.mark.django_db
-def test_accepts_maintenance_without_user_at_database_level():
+def test_accepts_maintenance_without_order_at_database_level():
     staff = User.objects.create_user(
         username="staffuser", password="testpass", role=Role.STAFF
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -333,32 +333,30 @@ def test_accepts_maintenance_without_user_at_database_level():
         kind=BookingKind.MAINTENANCE,
         reason="Net repair",
     )
-    assert Booking.objects.get(id=booking.id).user is None
+    assert Booking.objects.get(id=booking.id).order is None
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(
-    "kind, has_user, has_order, has_price, reason",
+    "kind, has_order, has_price, reason",
     [
-        (BookingKind.CUSTOMER, False, True, True, ""),
-        (BookingKind.CUSTOMER, True, False, True, ""),
-        (BookingKind.CUSTOMER, True, True, False, ""),
-        (BookingKind.CUSTOMER, True, True, True, "Net repair"),
-        (BookingKind.MAINTENANCE, True, False, False, "Net repair"),
-        (BookingKind.MAINTENANCE, False, True, False, "Net repair"),
-        (BookingKind.MAINTENANCE, False, False, True, "Net repair"),
-        (BookingKind.MAINTENANCE, False, False, False, ""),
-        (BookingKind.MAINTENANCE, False, False, False, "   "),
-        ("EVENT", True, True, True, ""),
+        (BookingKind.CUSTOMER, False, True, ""),
+        (BookingKind.CUSTOMER, True, False, ""),
+        (BookingKind.CUSTOMER, True, True, "Net repair"),
+        (BookingKind.MAINTENANCE, True, False, "Net repair"),
+        (BookingKind.MAINTENANCE, False, True, "Net repair"),
+        (BookingKind.MAINTENANCE, False, False, ""),
+        (BookingKind.MAINTENANCE, False, False, "   "),
+        ("EVENT", True, True, ""),
     ],
 )
 def test_rejects_kind_mismatching_fields_at_database_level(
-    kind, has_user, has_order, has_price, reason
+    kind, has_order, has_price, reason
 ):
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -372,7 +370,6 @@ def test_rejects_kind_mismatching_fields_at_database_level(
             court=court,
             starts_at="2030-06-01T10:00:00Z",
             ends_at="2030-06-01T11:00:00Z",
-            user=user if has_user else None,
             order=order if has_order else None,
             price_charged=Decimal("50.00") if has_price else None,
             created_by=user,
@@ -391,7 +388,7 @@ def test_accepts_booking_created_by_staff_for_a_customer_at_database_level():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -399,9 +396,9 @@ def test_accepts_booking_created_by_staff_for_a_customer_at_database_level():
     booking = create_customer_booking(
         court, customer, "2030-06-01T10:00:00Z", created_by=staff
     )
-    assert Booking.objects.get(id=booking.id).user == customer
-    assert customer.bookings.count() == 1
-    assert staff.bookings.count() == 0
+    assert Booking.objects.get(id=booking.id).order.user == customer
+    assert Booking.objects.filter(order__user=customer).count() == 1
+    assert not Booking.objects.filter(order__user=staff).exists()
     assert staff.created_bookings.count() == 1
 
 
@@ -436,7 +433,7 @@ def test_rejects_deleting_order_with_bookings_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpass")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -459,7 +456,7 @@ def test_rejects_anonymous_booking_creation_with_401():
     client = APIClient()
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -484,7 +481,7 @@ def test_lists_only_own_bookings_for_customer_with_200():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -497,6 +494,7 @@ def test_lists_only_own_bookings_for_customer_with_200():
     assert len(response.data) == 1
     assert response.data[0]["id"] == booking1.id
     assert response.data[0]["order"] == booking1.order.id
+    assert response.data[0]["user"] == customer1.id
     assert response.data[0]["price_charged"] == "50.00"
 
 
@@ -514,7 +512,7 @@ def test_lists_every_booking_for_staff_with_200():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -550,7 +548,7 @@ def test_rejects_booking_creation_for_customer_with_403(extra_data):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -570,7 +568,7 @@ def test_accepts_maintenance_for_staff_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -582,8 +580,8 @@ def test_accepts_maintenance_for_staff_with_201():
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
+    assert response.data["user"] is None
     booking = Booking.objects.get(id=response.data["id"])
-    assert booking.user is None
     assert booking.order is None
     assert booking.price_charged is None
     assert booking.kind == BookingKind.MAINTENANCE
@@ -601,7 +599,6 @@ def test_accepts_maintenance_for_staff_with_201():
         ({"reason": "Net repair"}, False, "kind"),
         ({"kind": BookingKind.MAINTENANCE}, False, "reason"),
         ({"kind": BookingKind.MAINTENANCE, "reason": "   "}, False, "reason"),
-        (MAINTENANCE, True, "user"),
     ],
 )
 def test_rejects_non_maintenance_fields_for_staff_with_400(
@@ -616,7 +613,7 @@ def test_rejects_non_maintenance_fields_for_staff_with_400(
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -632,14 +629,14 @@ def test_rejects_non_maintenance_fields_for_staff_with_400(
 
 
 @pytest.mark.django_db
-def test_ignores_order_and_price_in_body_for_staff_with_201():
+def test_ignores_user_order_and_price_in_body_for_staff_with_201():
     client = APIClient()
     staff = User.objects.create_user(
         username="staff", password="testpass", role=Role.STAFF
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -649,11 +646,13 @@ def test_ignores_order_and_price_in_body_for_staff_with_201():
     booking_data = MAINTENANCE | {
         "court": court.id,
         "starts_at": "2030-06-01T11:00:00Z",
+        "user": staff.id,
         "order": order.id,
         "price_charged": "10.00",
     }
     response = client.post("/api/v1/bookings/", booking_data)
     assert response.status_code == 201
+    assert response.data["user"] is None
     booking = Booking.objects.get(id=response.data["id"])
     assert booking.order is None
     assert booking.price_charged is None
@@ -670,7 +669,7 @@ def test_ignores_created_by_in_body_with_201():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -695,7 +694,7 @@ def test_rejects_booking_delete_with_405():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -721,7 +720,7 @@ def test_rejects_booking_update_with_405():
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -764,7 +763,7 @@ def test_validates_working_hours_boundaries(starts_at, expected_status):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -785,7 +784,7 @@ def create_cancel_scenario(order_status=OrderStatus.PENDING, slots=1):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -924,7 +923,7 @@ def test_rejects_maintenance_in_the_past(starts_at, expected_status):
     )
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,

@@ -2,6 +2,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.fields import ArrayField
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q, Sum
@@ -18,9 +19,13 @@ models.CharField.register_lookup(Trim)
 
 
 class Sport(models.TextChoices):
-    VOLLEYBALL = "VOLLEYBALL"
+    FUTSAL = "FUTSAL"
+    SOCIETY = "SOCIETY"
     BASKETBALL = "BASKETBALL"
-    SOCCER = "SOCCER"
+    VOLLEYBALL = "VOLLEYBALL"
+    BEACH_VOLLEYBALL = "BEACH_VOLLEYBALL"
+    FOOTVOLLEY = "FOOTVOLLEY"
+    BEACH_TENNIS = "BEACH_TENNIS"
 
 
 class Tier(models.TextChoices):
@@ -76,7 +81,7 @@ class User(AbstractUser):
 
 class Court(models.Model):
     name = models.CharField(max_length=100, unique=True)
-    sport = models.CharField(max_length=20, choices=Sport)
+    sports = ArrayField(models.CharField(max_length=20, choices=Sport))
     tier = models.CharField(max_length=20, choices=Tier)
     hour_price = models.DecimalField(
         max_digits=6, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))]
@@ -98,7 +103,11 @@ class Court(models.Model):
                 condition=Q(hour_price__gt=0), name="court_hour_price_positive"
             ),
             models.CheckConstraint(
-                condition=Q(sport__in=Sport.values), name="court_sport_valid"
+                condition=Q(sports__contained_by=Sport.values),
+                name="court_sports_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(sports__len__gt=0), name="court_sports_not_empty"
             ),
             models.CheckConstraint(
                 condition=Q(tier__in=Tier.values), name="court_tier_valid"
@@ -112,9 +121,6 @@ class Court(models.Model):
 
 class Booking(models.Model):
     court = models.ForeignKey(Court, on_delete=models.PROTECT, related_name="bookings")
-    user = models.ForeignKey(
-        User, on_delete=models.PROTECT, null=True, blank=True, related_name="bookings"
-    )
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     status = models.CharField(
@@ -139,7 +145,7 @@ class Booking(models.Model):
     )
 
     def __str__(self):
-        user = self.user.username if self.user else "-"
+        user = self.order.user.username if self.order else "-"
         order = self.order_id if self.order_id else "-"
         return f"{user} - {self.court.name} ({self.starts_at} to {self.ends_at}, created by {self.created_by.username}), Order: {order}"
 
@@ -176,7 +182,6 @@ class Booking(models.Model):
             models.CheckConstraint(
                 condition=Q(
                     kind=BookingKind.CUSTOMER,
-                    user__isnull=False,
                     reason__exact="",
                     price_charged__gt=0,
                     price_charged__isnull=False,
@@ -184,7 +189,6 @@ class Booking(models.Model):
                 )
                 | Q(
                     kind=BookingKind.MAINTENANCE,
-                    user__isnull=True,
                     price_charged__isnull=True,
                     order__isnull=True,
                 )

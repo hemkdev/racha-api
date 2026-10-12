@@ -20,7 +20,7 @@ from core.models import (
 class CourtSerializer(serializers.ModelSerializer):
     class Meta:
         model = Court
-        fields = ["id", "name", "sport", "tier", "hour_price", "is_active"]
+        fields = ["id", "name", "sports", "tier", "hour_price", "is_active"]
         read_only_fields = ["id"]
 
     def validate_hour_price(self, value):
@@ -30,8 +30,21 @@ class CourtSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_sports(self, value):
+        if not value:
+            raise serializers.ValidationError("Court must have at least one sport.")
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError(
+                "Duplicate sports for the same court are not allowed."
+            )
+        return value
+
 
 class BookingSerializer(serializers.ModelSerializer):
+    user = serializers.PrimaryKeyRelatedField(
+        source="order.user", read_only=True, allow_null=True
+    )
+
     class Meta:
         model = Booking
         fields = [
@@ -40,9 +53,9 @@ class BookingSerializer(serializers.ModelSerializer):
             "starts_at",
             "ends_at",
             "created_by",
-            "user",
             "status",
             "kind",
+            "user",
             "reason",
             "order",
             "price_charged",
@@ -81,10 +94,6 @@ class BookingSerializer(serializers.ModelSerializer):
         elif not reason:
             raise serializers.ValidationError(
                 {"reason": "Reason must be provided for maintenance bookings."}
-            )
-        elif attrs.get("user"):
-            raise serializers.ValidationError(
-                {"user": "User must be empty for maintenance bookings."}
             )
         return attrs
 
@@ -164,7 +173,6 @@ class OrderSerializer(serializers.ModelSerializer):
                         Booking.objects.create(
                             **booking_data,
                             order=order,
-                            user=order.user,
                             created_by=order.created_by,
                             kind=BookingKind.CUSTOMER,
                             price_charged=price_charged,

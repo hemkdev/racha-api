@@ -11,7 +11,6 @@ def create_customer_booking(court, user, starts_at, created_by=None, **extra):
         starts_at = datetime.fromisoformat(starts_at)
     fields = {
         "court": court,
-        "user": user,
         "created_by": created_by,
         "starts_at": starts_at,
         "ends_at": starts_at + timedelta(hours=1),

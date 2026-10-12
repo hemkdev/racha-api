@@ -27,7 +27,7 @@ SLOT_TAKEN = "This court is already booked for the selected time slot."
 def create_court(name="Court 1", is_active=True):
     return Court.objects.create(
         name=name,
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=is_active,
@@ -67,7 +67,6 @@ def test_creates_order_with_nested_bookings_for_customer_with_201():
     bookings = order.bookings.order_by("starts_at")
     assert bookings.count() == 3
     for booking in bookings:
-        assert booking.user == customer
         assert booking.created_by == customer
         assert booking.kind == BookingKind.CUSTOMER
         assert booking.status == BookingStatus.ACTIVE
@@ -91,7 +90,6 @@ def test_creates_order_for_customer_as_staff_with_201():
     assert order.user == customer
     assert order.created_by == staff
     booking = order.bookings.get()
-    assert booking.user == customer
     assert booking.created_by == staff
 
 

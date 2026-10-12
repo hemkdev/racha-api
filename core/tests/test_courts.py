@@ -1,3 +1,4 @@
+import importlib
 from datetime import datetime
 from decimal import Decimal
 
@@ -22,7 +23,7 @@ from core.tests.helpers import create_customer_booking, freeze_now
 def test_accepts_valid_court_at_database_level():
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.SOCCER,
+        sports=[Sport.FUTSAL],
         tier=Tier.BASIC,
         hour_price=Decimal("100.00"),
     )
@@ -36,7 +37,7 @@ def test_rejects_negative_price_at_database_level():
     with pytest.raises(IntegrityError), transaction.atomic():
         Court.objects.create(
             name="Court 2",
-            sport=Sport.SOCCER,
+            sports=[Sport.FUTSAL],
             tier=Tier.BASIC,
             hour_price=Decimal("-50.00"),
         )
@@ -47,7 +48,7 @@ def test_rejects_invalid_tier_at_database_level():
     with pytest.raises(IntegrityError), transaction.atomic():
         Court.objects.create(
             name="Court 2",
-            sport=Sport.SOCCER,
+            sports=[Sport.FUTSAL],
             tier="TOP",
             hour_price=Decimal("50.00"),
         )
@@ -55,10 +56,13 @@ def test_rejects_invalid_tier_at_database_level():
 
 @pytest.mark.django_db
 def test_rejects_invalid_sport_at_database_level():
-    with pytest.raises(IntegrityError), transaction.atomic():
+    with (
+        pytest.raises(IntegrityError, match="court_sports_valid"),
+        transaction.atomic(),
+    ):
         Court.objects.create(
             name="Court 2",
-            sport="BEACH_TENNIS",
+            sports=[Sport.FUTSAL, "CURLING"],
             tier=Tier.BASIC,
             hour_price=Decimal("50.00"),
         )
@@ -68,7 +72,7 @@ def test_rejects_invalid_sport_at_database_level():
 def test_list_courts_with_200():
     Court.objects.create(
         name="Court 1",
-        sport=Sport.SOCCER,
+        sports=[Sport.FUTSAL],
         tier=Tier.BASIC,
         hour_price=Decimal("100.00"),
     )
@@ -90,12 +94,12 @@ def test_rejects_invalid_sport_with_400():
     client.force_authenticate(user=user)
     response = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "BANANA", "tier": "BASIC", "hour_price": "50.00"},
+        {"name": "X", "sports": ["BANANA"], "tier": "BASIC", "hour_price": "50.00"},
         format="json",
     )
 
     assert response.status_code == 400
-    assert "sport" in response.data
+    assert "sports" in response.data
 
 
 @pytest.mark.django_db
@@ -109,7 +113,7 @@ def test_rejects_negative_price_with_400():
     client.force_authenticate(user=user)
     response = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "-50.00"},
+        {"name": "X", "sports": ["FUTSAL"], "tier": "BASIC", "hour_price": "-50.00"},
         format="json",
     )
 
@@ -128,7 +132,7 @@ def test_rejects_zero_price_with_400():
     client.force_authenticate(user=user)
     response = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "0.00"},
+        {"name": "X", "sports": ["FUTSAL"], "tier": "BASIC", "hour_price": "0.00"},
         format="json",
     )
 
@@ -147,7 +151,7 @@ def test_rejects_non_staff_user_with_403():
     client.force_authenticate(user=user)
     response = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "50.00"},
+        {"name": "X", "sports": ["FUTSAL"], "tier": "BASIC", "hour_price": "50.00"},
         format="json",
     )
     assert response.status_code == 403
@@ -158,7 +162,7 @@ def test_rejects_anonymous_user_with_401():
     client = APIClient()
     response = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "50.00"},
+        {"name": "X", "sports": ["FUTSAL"], "tier": "BASIC", "hour_price": "50.00"},
         format="json",
     )
     assert response.status_code == 401
@@ -175,7 +179,7 @@ def test_deactivates_court_as_staff_with_200():
     client.force_authenticate(user=user)
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -197,7 +201,7 @@ def test_rejects_court_deactivation_as_customer_with_403():
     client.force_authenticate(user=user)
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -219,7 +223,7 @@ def test_rejects_deleting_court_with_bookings_with_409():
     client.force_authenticate(user=user)
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -241,7 +245,7 @@ def test_accepts_deleting_court_without_bookings_with_204():
     client.force_authenticate(user=user)
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -256,7 +260,7 @@ def test_lists_public_schedule_with_200():
     client = APIClient()
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -282,7 +286,7 @@ def test_list_shows_booked_slots_as_unavailable_with_200():
     user = User.objects.create(username="testuser")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -300,7 +304,7 @@ def test_list_shows_maintenance_slots_as_unavailable_with_200():
     staff = User.objects.create(username="staff", role=Role.STAFF)
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -325,7 +329,7 @@ def test_cancelled_bookings_do_not_block_slots_with_200():
     user = User.objects.create(username="testuser")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -345,14 +349,14 @@ def test_ignores_bookings_from_other_courts_and_days_with_200():
     user = User.objects.create(username="testuser")
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
     )
     other_court = Court.objects.create(
         name="Court 2",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -374,7 +378,7 @@ def test_rejects_slots_of_inactive_court_with_404():
     client = APIClient()
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=False,
@@ -389,7 +393,7 @@ def test_rejects_slots_without_valid_date_with_400(query):
     client = APIClient()
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -421,7 +425,7 @@ def test_list_shows_slot_prices_with_200():
     client = APIClient()
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -444,7 +448,7 @@ def create_staff_client():
 def create_volleyball_court():
     return Court.objects.create(
         name="Court 1",
-        sport=Sport.VOLLEYBALL,
+        sports=[Sport.VOLLEYBALL],
         tier=Tier.BASIC,
         hour_price=Decimal("50.00"),
         is_active=True,
@@ -456,7 +460,7 @@ def create_volleyball_court():
 def test_accepts_price_in_half_real_steps_at_database_level(hour_price):
     court = Court.objects.create(
         name="Court 1",
-        sport=Sport.SOCCER,
+        sports=[Sport.FUTSAL],
         tier=Tier.BASIC,
         hour_price=Decimal(hour_price),
     )
@@ -472,7 +476,7 @@ def test_rejects_price_off_half_real_steps_at_database_level(hour_price):
     ):
         Court.objects.create(
             name="Court 1",
-            sport=Sport.SOCCER,
+            sports=[Sport.FUTSAL],
             tier=Tier.BASIC,
             hour_price=Decimal(hour_price),
         )
@@ -483,7 +487,7 @@ def test_rejects_price_off_half_real_steps_on_creation_with_400():
     client, _ = create_staff_client()
     response = client.post(
         "/api/v1/courts/",
-        {"name": "X", "sport": "SOCCER", "tier": "BASIC", "hour_price": "49.99"},
+        {"name": "X", "sports": ["FUTSAL"], "tier": "BASIC", "hour_price": "49.99"},
         format="json",
     )
     assert response.status_code == 400
@@ -558,3 +562,122 @@ def test_updates_court_with_future_booking_when_not_deactivating_with_200():
     assert response.status_code == 200
     court.refresh_from_db()
     assert court.hour_price == Decimal("60.00")
+
+
+def test_lists_the_arena_sports():
+    assert set(Sport.values) == {
+        "FUTSAL",
+        "SOCIETY",
+        "BASKETBALL",
+        "VOLLEYBALL",
+        "BEACH_VOLLEYBALL",
+        "FOOTVOLLEY",
+        "BEACH_TENNIS",
+    }
+
+
+@pytest.mark.django_db
+def test_accepts_court_with_many_sports_at_database_level():
+    court = Court.objects.create(
+        name="Sand court",
+        sports=[Sport.BEACH_TENNIS, Sport.BEACH_VOLLEYBALL, Sport.FOOTVOLLEY],
+        tier=Tier.BASIC,
+        hour_price=Decimal("50.00"),
+    )
+    court.refresh_from_db()
+    assert court.sports == [
+        Sport.BEACH_TENNIS,
+        Sport.BEACH_VOLLEYBALL,
+        Sport.FOOTVOLLEY,
+    ]
+
+
+@pytest.mark.django_db
+def test_rejects_court_without_sports_at_database_level():
+    with (
+        pytest.raises(IntegrityError, match="court_sports_not_empty"),
+        transaction.atomic(),
+    ):
+        Court.objects.create(
+            name="Court 1",
+            sports=[],
+            tier=Tier.BASIC,
+            hour_price=Decimal("50.00"),
+        )
+
+
+@pytest.mark.django_db
+def test_creates_court_with_many_sports_with_201():
+    client, _ = create_staff_client()
+    response = client.post(
+        "/api/v1/courts/",
+        {
+            "name": "Sand court",
+            "sports": ["BEACH_TENNIS", "FOOTVOLLEY"],
+            "tier": "BASIC",
+            "hour_price": "50.00",
+        },
+        format="json",
+    )
+    assert response.status_code == 201
+    assert response.data["sports"] == ["BEACH_TENNIS", "FOOTVOLLEY"]
+    assert "sport" not in response.data
+    assert Court.objects.get().sports == ["BEACH_TENNIS", "FOOTVOLLEY"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "sports",
+    [[], ["FUTSAL", "FUTSAL"]],
+    ids=["empty", "repeated"],
+)
+def test_rejects_invalid_sports_list_with_400(sports):
+    client, _ = create_staff_client()
+    response = client.post(
+        "/api/v1/courts/",
+        {"name": "X", "sports": sports, "tier": "BASIC", "hour_price": "50.00"},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "sports" in response.data
+    assert not Court.objects.exists()
+
+
+class FakeCourt:
+    def __init__(self, sport):
+        self.sport = sport
+        self.saved_fields = None
+
+    def save(self, update_fields):
+        self.saved_fields = update_fields
+
+
+class FakeApps:
+    def __init__(self, courts):
+        self.courts = courts
+
+    def get_model(self, app_label, model_name):
+        assert (app_label, model_name) == ("core", "Court")
+        courts = self.courts
+
+        class Manager:
+            def all(self):
+                return courts
+
+        return type("Court", (), {"objects": Manager()})
+
+
+def test_sports_migration_copies_each_court_sport():
+    # Migration 0015 is irreversible and the test database is born already
+    # migrated, so its data copy is checked by calling the function directly.
+    migration = importlib.import_module(
+        "core.migrations.0015_remove_court_court_sport_valid_remove_court_sport_and_more"
+    )
+    courts = [FakeCourt("SOCCER"), FakeCourt("VOLLEYBALL"), FakeCourt("BASKETBALL")]
+    migration.copy_sport_to_sports(FakeApps(courts), schema_editor=None)
+    assert [court.sports for court in courts] == [
+        ["FUTSAL"],
+        ["VOLLEYBALL"],
+        ["BASKETBALL"],
+    ]
+    assert all(court.saved_fields == ["sports"] for court in courts)
