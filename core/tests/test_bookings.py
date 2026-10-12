@@ -491,11 +491,11 @@ def test_lists_only_own_bookings_for_customer_with_200():
     client.force_authenticate(user=customer1)
     response = client.get("/api/v1/bookings/")
     assert response.status_code == 200
-    assert len(response.data) == 1
-    assert response.data[0]["id"] == booking1.id
-    assert response.data[0]["order"] == booking1.order.id
-    assert response.data[0]["user"] == customer1.id
-    assert response.data[0]["price_charged"] == "50.00"
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == booking1.id
+    assert response.data["results"][0]["order"] == booking1.order.id
+    assert response.data["results"][0]["user"] == customer1.id
+    assert response.data["results"][0]["price_charged"] == "50.00"
 
 
 @pytest.mark.django_db
@@ -529,7 +529,7 @@ def test_lists_every_booking_for_staff_with_200():
     client.force_authenticate(user=staff)
     response = client.get("/api/v1/bookings/")
     assert response.status_code == 200
-    assert {booking["id"] for booking in response.data} == {
+    assert {booking["id"] for booking in response.data["results"]} == {
         booking1.id,
         booking2.id,
         maintenance.id,

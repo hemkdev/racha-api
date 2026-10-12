@@ -511,10 +511,10 @@ def test_lists_only_own_orders_with_total_for_customer_with_200():
     client.force_authenticate(user=customer)
     response = client.get("/api/v1/orders/")
     assert response.status_code == 200
-    assert len(response.data) == 1
-    assert response.data[0]["id"] == order.id
-    assert response.data[0]["total"] == "125.00"
-    assert len(response.data[0]["bookings"]) == 2
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["id"] == order.id
+    assert response.data["results"][0]["total"] == "125.00"
+    assert len(response.data["results"][0]["bookings"]) == 2
 
 
 @pytest.mark.django_db
@@ -527,7 +527,7 @@ def test_lists_every_order_for_staff_with_200():
     client.force_authenticate(user=staff)
     response = client.get("/api/v1/orders/")
     assert response.status_code == 200
-    assert len(response.data) == 2
+    assert response.data["count"] == 2
 
 
 @pytest.mark.django_db

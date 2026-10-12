@@ -5,7 +5,8 @@ from django.db.models import ProtectedError
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -18,9 +19,28 @@ from core.models import (
     Order,
     OrderStatus,
     Role,
+    Sport,
+    Tier,
 )
 from core.permissions import IsStaffRoleOrReadOnly
 from core.serializers import BookingSerializer, CourtSerializer, OrderSerializer
+
+
+def parse_date_param(value, param):
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise ValidationError({param: "Expected date format: YYYY-MM-DD."})
+
+
+def parse_period(start_str, end_str):
+    start = parse_date_param(start_str, "from")
+    end = parse_date_param(end_str, "to")
+    if start and end and start > end:
+        raise ValidationError({"to": "End date must not be before start date."})
+    return start, end
 
 
 class Conflict(APIException):
@@ -30,9 +50,32 @@ class Conflict(APIException):
 
 
 class CourtViewSet(viewsets.ModelViewSet):
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["name"]
+    ordering_fields = ["name", "hour_price"]
+    ordering = ["name"]
     queryset = Court.objects.all()
     serializer_class = CourtSerializer
     permission_classes = [IsStaffRoleOrReadOnly]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        sport = self.request.query_params.get("sport")
+        tier = self.request.query_params.get("tier")
+        is_active = self.request.query_params.get("is_active")
+        if sport:
+            if sport not in Sport.values:
+                raise ValidationError({"sport": "Invalid sport value."})
+            queryset = queryset.filter(sports__contains=[sport])
+        if tier:
+            if tier not in Tier.values:
+                raise ValidationError({"tier": "Invalid tier value."})
+            queryset = queryset.filter(tier=tier)
+        if is_active:
+            if is_active.lower() not in ["true", "false"]:
+                raise ValidationError({"is_active": "Invalid is_active value."})
+            queryset = queryset.filter(is_active=is_active.lower() == "true")
+        return queryset
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -103,13 +146,28 @@ class BookingViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
+    filter_backends = [OrderingFilter]
+    ordering_fields = [
+        "court__name",
+        "starts_at",
+        "order__user__username",
+        "created_by__username",
+    ]
+    ordering = ["starts_at", "-id"]
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
     permission_classes = [IsAuthenticated, IsStaffRoleOrReadOnly]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related("order")
         user = self.request.user
+        parsed_start, parsed_end = parse_period(
+            self.request.query_params.get("from"), self.request.query_params.get("to")
+        )
+        if parsed_start:
+            queryset = queryset.filter(starts_at__date__gte=parsed_start)
+        if parsed_end:
+            queryset = queryset.filter(starts_at__date__lte=parsed_end)
         if user.role == Role.STAFF:
             return queryset
         return queryset.filter(order__user=user)
@@ -161,13 +219,34 @@ class OrderViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
+    filter_backends = [OrderingFilter]
+    ordering_fields = [
+        "user__username",
+        "status",
+        "created_by__username",
+        "created_at",
+        "total",
+    ]
+    ordering = ["-created_at", "-id"]
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Order.objects.with_total()
+        queryset = Order.objects.with_total().prefetch_related("bookings")
         user = self.request.user
+        status_param = self.request.query_params.get("status")
+        parsed_start, parsed_end = parse_period(
+            self.request.query_params.get("from"), self.request.query_params.get("to")
+        )
+        if parsed_start:
+            queryset = queryset.filter(created_at__date__gte=parsed_start)
+        if parsed_end:
+            queryset = queryset.filter(created_at__date__lte=parsed_end)
+        if status_param:
+            if status_param not in OrderStatus.values:
+                raise ValidationError({"status": "Invalid status value."})
+            queryset = queryset.filter(status=status_param)
         if user.role == Role.STAFF:
             return queryset
         return queryset.filter(user=user)
