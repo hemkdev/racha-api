@@ -18,9 +18,9 @@ class BookingAdmin(admin.ModelAdmin):
         "created_by",
         "status",
     )
-    list_filter = ("status", "court")
-    list_select_related = ("court", "created_by")
-    search_fields = ("court__name", "created_by__username")
+    list_filter = ("status", "court", "order__user", "created_by")
+    list_select_related = ("court", "order__user", "created_by")
+    search_fields = ("court__name", "order__user__username", "created_by__username")
 
 
 admin.site.register(User, ProfileUserAdmin)
