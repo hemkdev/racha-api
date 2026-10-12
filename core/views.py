@@ -108,7 +108,7 @@ class BookingViewSet(
     permission_classes = [IsAuthenticated, IsStaffRoleOrReadOnly]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related("order")
         user = self.request.user
         if user.role == Role.STAFF:
             return queryset
@@ -166,7 +166,7 @@ class OrderViewSet(
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Order.objects.with_total()
+        queryset = Order.objects.with_total().prefetch_related("bookings")
         user = self.request.user
         if user.role == Role.STAFF:
             return queryset
