@@ -262,8 +262,10 @@ class OrderViewSet(
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["post"], permission_classes=[IsStaffRoleOrReadOnly])
+    @transaction.atomic
     def confirm(self, request, pk=None):
         order = self.get_object()
+        order = Order.objects.select_for_update().get(pk=order.pk)
         if order.status != OrderStatus.PENDING:
             return Response(
                 {"detail": "Only pending orders can be confirmed."},
@@ -272,12 +274,15 @@ class OrderViewSet(
 
         order.status = OrderStatus.PAID
         order.save(update_fields=["status"])
+        order = self.get_object()
         serializer = self.get_serializer(order)
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         order = self.get_object()
+        order = Order.objects.select_for_update().get(pk=order.pk)
         if order.status != OrderStatus.PENDING:
             return Response(
                 {"detail": "Only pending orders can be cancelled."},
@@ -294,12 +299,11 @@ class OrderViewSet(
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        with transaction.atomic():
-            order.status = OrderStatus.CANCELLED
-            order.save(update_fields=["status"])
-            order.bookings.filter(status=BookingStatus.ACTIVE).update(
-                status=BookingStatus.CANCELLED
-            )
+        order.status = OrderStatus.CANCELLED
+        order.save(update_fields=["status"])
+        order.bookings.filter(status=BookingStatus.ACTIVE).update(
+            status=BookingStatus.CANCELLED
+        )
         order = self.get_object()
         serializer = self.get_serializer(order)
         return Response(serializer.data)
