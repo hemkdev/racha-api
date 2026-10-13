@@ -182,7 +182,10 @@ class OrderSerializer(serializers.ModelSerializer):
                             price_charged=price_charged,
                         )
                 except IntegrityError as error:
-                    if "unique_booking_per_court_time" in str(error):
+                    if (
+                        error.__cause__.diag.constraint_name
+                        == "unique_booking_per_court_time"
+                    ):
                         raise serializers.ValidationError(
                             {
                                 "bookings": {
