@@ -33,3 +33,12 @@ def test_accepts_user_without_phone_at_database_level():
     user = User.objects.create_user(username="testuser", password="testpassword")
 
     assert User.objects.get(pk=user.pk).phone == ""
+
+
+@pytest.mark.django_db
+def test_creates_superuser_as_staff():
+    # createsuperuser goes through this method; a CUSTOMER superuser could open
+    # the admin but would be refused by every staff-only endpoint.
+    user = User.objects.create_superuser(username="admin", password="testpassword")
+
+    assert User.objects.get(pk=user.pk).role == Role.STAFF
