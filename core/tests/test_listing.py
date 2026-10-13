@@ -248,3 +248,49 @@ def test_searches_courts_by_name():
     create_court("Indoor Hall")
     response = APIClient().get("/api/v1/courts/?search=sand")
     assert [court["name"] for court in results(response)] == ["Sand Arena"]
+
+
+# Filters apply only to list
+
+
+def court_booking_and_order():
+    customer = User.objects.create_user(username="customer", role=Role.CUSTOMER)
+    court = create_court("Court 1")
+    booking = create_customer_booking(court, customer, "2030-10-01T08:00:00-03:00")
+    return {"court": court.id, "booking": booking.id, "order": booking.order_id}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/courts/{court}/?is_active=false",
+        "/api/v1/courts/{court}/?sport=CURLING",
+        "/api/v1/bookings/{booking}/?from=2030-11-01",
+        "/api/v1/bookings/{booking}/?from=yesterday",
+        "/api/v1/orders/{order}/?status=PAID",
+        "/api/v1/orders/{order}/?to=2030-13-01",
+    ],
+)
+def test_ignores_list_filters_on_detail(path):
+    client, _ = staff_client()
+    ids = court_booking_and_order()
+    response = client.get(path.format(**ids))
+    assert response.status_code == 200, response.data
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("get", "/api/v1/courts/{court}/slots/?date=2030-10-01&is_active=false"),
+        ("post", "/api/v1/bookings/{booking}/cancel/?from=2030-11-01"),
+        ("post", "/api/v1/orders/{order}/confirm/?status=PAID"),
+        ("post", "/api/v1/orders/{order}/cancel/?status=CANCELLED"),
+    ],
+)
+def test_ignores_list_filters_on_actions(method, path):
+    client, _ = staff_client()
+    ids = court_booking_and_order()
+    response = getattr(client, method)(path.format(**ids))
+    assert response.status_code == 200, response.data
