@@ -60,6 +60,8 @@ class CourtViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        if self.action != "list":
+            return queryset
         sport = self.request.query_params.get("sport")
         tier = self.request.query_params.get("tier")
         is_active = self.request.query_params.get("is_active")
@@ -161,6 +163,10 @@ class BookingViewSet(
     def get_queryset(self):
         queryset = super().get_queryset().select_related("order")
         user = self.request.user
+        if user.role != Role.STAFF:
+            queryset = queryset.filter(order__user=user)
+        if self.action != "list":
+            return queryset
         parsed_start, parsed_end = parse_period(
             self.request.query_params.get("from"), self.request.query_params.get("to")
         )
@@ -168,9 +174,7 @@ class BookingViewSet(
             queryset = queryset.filter(starts_at__date__gte=parsed_start)
         if parsed_end:
             queryset = queryset.filter(starts_at__date__lte=parsed_end)
-        if user.role == Role.STAFF:
-            return queryset
-        return queryset.filter(order__user=user)
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -235,6 +239,10 @@ class OrderViewSet(
     def get_queryset(self):
         queryset = Order.objects.with_total().prefetch_related("bookings")
         user = self.request.user
+        if user.role != Role.STAFF:
+            queryset = queryset.filter(user=user)
+        if self.action != "list":
+            return queryset
         status_param = self.request.query_params.get("status")
         parsed_start, parsed_end = parse_period(
             self.request.query_params.get("from"), self.request.query_params.get("to")
@@ -247,9 +255,7 @@ class OrderViewSet(
             if status_param not in OrderStatus.values:
                 raise ValidationError({"status": "Invalid status value."})
             queryset = queryset.filter(status=status_param)
-        if user.role == Role.STAFF:
-            return queryset
-        return queryset.filter(user=user)
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
