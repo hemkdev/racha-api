@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    env_file: .env
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      - app
+    ports:
+      # Loopback only: the Cloudflare tunnel on the host is the single way in.
+      - "127.0.0.1:8080:80"
+    restart: unless-stopped
