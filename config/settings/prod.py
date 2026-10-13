@@ -18,6 +18,14 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 3600
 
+# Throttle counters, shared by the gunicorn workers; lost on restart, which is fine
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": "/tmp/racha-cache",
+    }
+}
+
 # Without DEBUG, Django only mails errors to ADMINS; print them to the container log
 LOGGING = {
     "version": 1,

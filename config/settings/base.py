@@ -106,6 +106,14 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "60/min", "user": "300/min", "token": "5/min"},
+    # nginx sets X-Forwarded-For to the visitor's address from Cloudflare; only
+    # the last entry is trusted, whatever the client put before it.
+    "NUM_PROXIES": 1,
 }
 
 # Internationalization
