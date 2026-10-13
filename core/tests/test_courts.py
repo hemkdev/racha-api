@@ -299,6 +299,16 @@ def test_list_shows_booked_slots_as_unavailable_with_200():
 
 
 @pytest.mark.django_db
+def test_list_shows_started_slots_as_unavailable_with_200():
+    court = create_volleyball_court()
+    with freeze_now("2030-10-01T10:30:00"):
+        response = APIClient().get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
+    assert response.status_code == 200
+    availability = [slot["available"] for slot in response.json()["slots"]]
+    assert availability == [False] * 3 + [True] * 11
+
+
+@pytest.mark.django_db
 def test_list_shows_maintenance_slots_as_unavailable_with_200():
     client = APIClient()
     staff = User.objects.create(username="staff", role=Role.STAFF)
