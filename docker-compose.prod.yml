@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    env_file: .env
+    environment:
+      # manage.py defaults to dev; wsgi.py already points to prod
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    depends_on:
+      - app
+    ports:
+      # Loopback only: the Cloudflare tunnel on the host is the single way in.
+      - "127.0.0.1:8080:80"
+    restart: unless-stopped

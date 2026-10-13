@@ -20,8 +20,20 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
+# Placeholder env: settings require these, but collectstatic never touches the database.
+RUN SECRET_KEY=build DATABASE_URL=sqlite://:memory: \
+    .venv/bin/python manage.py collectstatic --noinput
+
+
+# Web stage: nginx serves the static files and proxies the rest to the app.
+FROM nginx:1.27-alpine AS web
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/staticfiles /usr/share/nginx/static
+
 
 # Runtime stage: the virtualenv and the source, nothing else.
+# Kept last so a plain build (CI included) still produces the app image.
 FROM python:3.14-slim AS runtime
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
