@@ -4,6 +4,9 @@ services:
       context: .
       target: runtime
     env_file: .env
+    environment:
+      # manage.py defaults to dev; wsgi.py already points to prod
+      DJANGO_SETTINGS_MODULE: config.settings.prod
     restart: unless-stopped
 
   web:
