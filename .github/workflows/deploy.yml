@@ -23,6 +23,8 @@ env:
 
 jobs:
   build:
+    # A rollback reuses the images already pushed for its tag.
+    if: github.event_name == 'release'
     # Native ARM runner: the image matches the VM without emulation.
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -57,6 +59,8 @@ jobs:
 
   deploy:
     needs: build
+    # Runs after a skipped build (rollback), but not after a failed one.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -96,6 +100,7 @@ jobs:
           ssh vm "cd racha && export IMAGE_TAG=$TAG \
             && docker compose pull \
             && docker compose run --rm app python manage.py migrate --noinput \
-            && docker compose up -d --remove-orphans"
+            && docker compose up -d --remove-orphans \
+            && docker image prune -af"
       - name: Smoke check
         run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "https://$APP_HOST/api/v1/courts/"
