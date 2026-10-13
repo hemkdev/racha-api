@@ -15,6 +15,7 @@ CLOSES_AT = time(22, 0)
 PEAK_STARTS_AT = time(18, 0)
 PEAK_ENDS_AT = time(22, 0)
 PEAK_MULTIPLIER = Decimal("1.5")
+MAX_PENDING_HOURS = 4
 models.CharField.register_lookup(Trim)
 
 
