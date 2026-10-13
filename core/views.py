@@ -130,11 +130,12 @@ class CourtViewSet(viewsets.ModelViewSet):
                 starts_at__lt=starts[-1] + slot_duration,
             ).values_list("starts_at", flat=True)
         )
+        now = timezone.now()
         slots = [
             {
                 "starts_at": start,
                 "ends_at": start + slot_duration,
-                "available": start not in booked,
+                "available": start not in booked and start > now,
                 "price": str(court.price_at(start)),
             }
             for start in starts
