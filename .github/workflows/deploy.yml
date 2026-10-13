@@ -18,8 +18,8 @@ concurrency:
 env:
   TAG: ${{ github.event.release.tag_name || inputs.tag }}
   IMAGE: ghcr.io/hemkdev/racha-api
-  APP_HOST: racha.hemk.me
-  SSH_HOST: ssh-racha.hemk.me
+  APP_HOST: racha.hemk.dev
+  SSH_HOST: ssh-racha.hemk.dev
 
 jobs:
   build:
