@@ -55,11 +55,11 @@ def post_concurrently(requests, *models):
 
         return save
 
-    def post(index, user, path):
+    def post(index, user, path, data=None):
         client = APIClient()
         client.force_authenticate(user=user)
         try:
-            responses[index] = client.post(path)
+            responses[index] = client.post(path, data, format="json")
         except Exception as error:
             responses[index] = error
         finally:

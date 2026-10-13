@@ -7,13 +7,16 @@ from rest_framework import serializers
 
 from core.models import (
     CLOSES_AT,
+    MAX_PENDING_HOURS,
     OPENS_AT,
     Booking,
     BookingKind,
     BookingStatus,
     Court,
     Order,
+    OrderStatus,
     Role,
+    User,
 )
 
 
@@ -164,6 +167,25 @@ class OrderSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         bookings_data = validated_data.pop("bookings")
         with transaction.atomic():
+            customer = validated_data["user"]
+            if validated_data["created_by"].role == Role.CUSTOMER:
+                # Locking the customer serializes their purchases; without it two
+                # concurrent orders would count the same held hours and both pass.
+                User.objects.select_for_update().get(pk=customer.pk)
+                held = Booking.objects.filter(
+                    order__user=customer,
+                    order__status=OrderStatus.PENDING,
+                    status=BookingStatus.ACTIVE,
+                    starts_at__gt=timezone.now(),
+                ).count()
+                if held + len(bookings_data) > MAX_PENDING_HOURS:
+                    raise serializers.ValidationError(
+                        {
+                            "bookings": [
+                                f"Customers can hold at most {MAX_PENDING_HOURS} pending hours; you already have {held}."
+                            ]
+                        }
+                    )
             order = Order.objects.create(**validated_data)
             for index, booking_data in sorted(
                 enumerate(bookings_data),

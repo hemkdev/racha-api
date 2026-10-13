@@ -764,3 +764,131 @@ def test_rejects_cancel_of_order_with_started_booking_with_409():
     order.refresh_from_db()
     assert order.status == OrderStatus.PENDING
     assert order.bookings.filter(status=BookingStatus.ACTIVE).count() == 2
+
+
+# Pending hours cap
+
+
+def pending_cap_error(hours):
+    return {
+        "bookings": [
+            f"Customers can hold at most 4 pending hours; you already have {hours}."
+        ]
+    }
+
+
+def hours_on(day, *hours, court):
+    return [
+        {"court": court.id, "starts_at": f"{day}T{hour:02d}:00:00-03:00"}
+        for hour in hours
+    ]
+
+
+def slots_on(day, *hours):
+    return [f"{day}T{hour:02d}:00:00-03:00" for hour in hours]
+
+
+@pytest.mark.django_db
+def test_accepts_order_reaching_pending_hours_cap_with_201():
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    create_order(customer, slots_on("2030-10-01", 8, 9), court=court)
+    client.force_authenticate(user=customer)
+    data = {"bookings": hours_on("2030-10-02", 8, 9, court=court)}
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 201
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("held", "requested"),
+    [([8, 9, 10], [8, 9]), ([], [8, 9, 10, 11, 12])],
+    ids=["held_plus_new", "single_order"],
+)
+def test_rejects_order_above_pending_hours_cap_with_400(held, requested):
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    if held:
+        create_order(customer, slots_on("2030-10-01", *held), court=court)
+    client.force_authenticate(user=customer)
+    data = {"bookings": hours_on("2030-10-02", *requested, court=court)}
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 400
+    assert response.data == pending_cap_error(len(held))
+    assert Order.objects.count() == (1 if held else 0)
+
+
+@pytest.mark.django_db
+def test_counts_pending_hours_booked_by_staff_for_the_customer():
+    # The hours belong to the customer, whoever placed the order.
+    client = APIClient()
+    customer = create_user("customer")
+    staff = create_user("staff", role=Role.STAFF)
+    court = create_court()
+    order = create_order(customer, slots_on("2030-10-01", 8, 9, 10), court=court)
+    Order.objects.filter(pk=order.pk).update(created_by=staff)
+    client.force_authenticate(user=customer)
+    data = {"bookings": hours_on("2030-10-02", 8, 9, court=court)}
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 400
+    assert response.data == pending_cap_error(3)
+
+
+@pytest.mark.django_db
+def test_exempts_staff_from_pending_hours_cap_with_201():
+    client = APIClient()
+    customer = create_user("customer")
+    staff = create_user("staff", role=Role.STAFF)
+    court = create_court()
+    create_order(customer, slots_on("2030-10-01", 8, 9, 10, 11), court=court)
+    client.force_authenticate(user=staff)
+    data = {"user": customer.id, "bookings": hours_on("2030-10-02", 8, court=court)}
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 201
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("held", ["past", "cancelled", "paid"])
+def test_ignores_hours_that_are_not_pending_and_future(held):
+    client = APIClient()
+    customer = create_user("customer")
+    court = create_court()
+    if held == "past":
+        create_order(customer, slots_on("2020-10-01", 8, 9, 10), court=court)
+    elif held == "cancelled":
+        order = create_order(customer, slots_on("2030-10-01", 8, 9, 10), court=court)
+        order.bookings.update(status=BookingStatus.CANCELLED)
+    else:
+        create_order(
+            customer,
+            slots_on("2030-10-01", 8, 9, 10),
+            court=court,
+            status=OrderStatus.PAID,
+        )
+    client.force_authenticate(user=customer)
+    data = {"bookings": hours_on("2030-10-02", 8, 9, court=court)}
+    response = client.post("/api/v1/orders/", data, format="json")
+    assert response.status_code == 201
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_orders_cannot_exceed_pending_hours_cap():
+    # Each request counts 2 held hours unless the customer row is locked first.
+    customer = create_user("customer")
+    court = create_court()
+    create_order(customer, slots_on("2030-10-01", 8, 9), court=court)
+    responses = post_concurrently(
+        [
+            (
+                customer,
+                "/api/v1/orders/",
+                {"bookings": hours_on(day, 8, 9, court=court)},
+            )
+            for day in ["2030-10-02", "2030-10-03"]
+        ],
+        Order,
+    )
+    assert sorted(response.status_code for response in responses) == [201, 400]
+    assert Order.objects.filter(user=customer).count() == 2

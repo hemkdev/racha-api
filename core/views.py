@@ -9,6 +9,8 @@ from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from core.models import (
     CLOSES_AT,
@@ -309,3 +311,8 @@ class OrderViewSet(
         order = self.get_object()
         serializer = self.get_serializer(order)
         return Response(serializer.data)
+
+
+class TokenView(TokenObtainPairView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "token"

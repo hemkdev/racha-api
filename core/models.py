@@ -1,7 +1,7 @@
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -15,6 +15,7 @@ CLOSES_AT = time(22, 0)
 PEAK_STARTS_AT = time(18, 0)
 PEAK_ENDS_AT = time(22, 0)
 PEAK_MULTIPLIER = Decimal("1.5")
+MAX_PENDING_HOURS = 4
 models.CharField.register_lookup(Trim)
 
 
@@ -66,7 +67,14 @@ class OrderQuerySet(models.QuerySet):
         )
 
 
+class StaffSuperuserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault("role", Role.STAFF)
+        return super().create_superuser(username, email, password, **extra_fields)
+
+
 class User(AbstractUser):
+    objects = StaffSuperuserManager()
     phone = models.CharField(max_length=20, blank=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CUSTOMER)
 
