@@ -181,8 +181,12 @@ class BookingViewSet(
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         booking = self.get_object()
+        if booking.order:
+            booking.order = Order.objects.select_for_update().get(pk=booking.order.pk)
+            booking.refresh_from_db(fields=["status"])
         if booking.status != BookingStatus.ACTIVE:
             return Response(
                 {"detail": "Only active bookings can be cancelled."},
@@ -202,17 +206,15 @@ class BookingViewSet(
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        with transaction.atomic():
-            booking.status = BookingStatus.CANCELLED
-            booking.save(update_fields=["status"])
-            if (
-                booking.order
-                and not booking.order.bookings.filter(
-                    status=BookingStatus.ACTIVE
-                ).exists()
-            ):
-                booking.order.status = OrderStatus.CANCELLED
-                booking.order.save(update_fields=["status"])
+
+        booking.status = BookingStatus.CANCELLED
+        booking.save(update_fields=["status"])
+        if (
+            booking.order
+            and not booking.order.bookings.filter(status=BookingStatus.ACTIVE).exists()
+        ):
+            booking.order.status = OrderStatus.CANCELLED
+            booking.order.save(update_fields=["status"])
         booking = self.get_object()
         serializer = self.get_serializer(booking)
         return Response(serializer.data)
