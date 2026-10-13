@@ -1,5 +1,6 @@
 services:
   app:
+    image: ghcr.io/hemkdev/racha-api:${IMAGE_TAG:-latest}
     build:
       context: .
       target: runtime
@@ -10,6 +11,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: ghcr.io/hemkdev/racha-api-web:${IMAGE_TAG:-latest}
     build:
       context: .
       target: web
