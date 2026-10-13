@@ -1,0 +1,101 @@
+name: Deploy
+
+on:
+  release:
+    types: [published]
+  # Rollback: redeploy an earlier release by its tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to deploy
+        required: true
+
+# Two deploys never overlap; a new one waits for the running one to finish.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  IMAGE: ghcr.io/hemkdev/racha-api
+  APP_HOST: racha.hemk.me
+  SSH_HOST: ssh-racha.hemk.me
+
+jobs:
+  build:
+    # Native ARM runner: the image matches the VM without emulation.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }},${{ env.IMAGE }}:latest
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          push: true
+          tags: ${{ env.IMAGE }}-web:${{ env.TAG }},${{ env.IMAGE }}-web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          sudo install cloudflared /usr/local/bin/cloudflared
+      # SSH reaches the VM through the tunnel, authenticated by an Access service
+      # token; the VM has no open port. The host key is pinned, never trusted blindly.
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONFIG
+          Host vm
+            HostName $SSH_HOST
+            User deploy
+            ProxyCommand cloudflared access ssh --hostname %h --service-token-id \$CF_ACCESS_CLIENT_ID --service-token-secret \$CF_ACCESS_CLIENT_SECRET
+          CONFIG
+      - name: Deploy
+        run: |
+          scp docker-compose.prod.yml vm:racha/docker-compose.yml
+          # Migrate before replacing the containers: if it fails, the old ones keep serving.
+          # $TAG expands here on purpose, before the command reaches the VM.
+          # shellcheck disable=SC2029
+          ssh vm "cd racha && export IMAGE_TAG=$TAG \
+            && docker compose pull \
+            && docker compose run --rm app python manage.py migrate --noinput \
+            && docker compose up -d --remove-orphans"
+      - name: Smoke check
+        run: curl -fsS --retry 10 --retry-delay 3 --retry-all-errors -o /dev/null "https://$APP_HOST/api/v1/courts/"
