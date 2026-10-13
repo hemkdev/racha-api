@@ -19,9 +19,14 @@ from core.models import (
     Tier,
     User,
 )
-from core.tests.helpers import create_customer_booking, freeze_now
+from core.tests.helpers import (
+    create_customer_booking,
+    freeze_now,
+    post_concurrently,
+)
 
 SLOT_TAKEN = "This court is already booked for the selected time slot."
+CUSTOMER_PICKS_USER = "Customers can only create orders for themselves."
 
 
 def create_court(name="Court 1", is_active=True):
@@ -293,19 +298,21 @@ def test_rejects_order_without_bookings_with_400(data):
 
 
 @pytest.mark.django_db
-def test_rejects_user_in_body_for_customer_with_400():
+@pytest.mark.parametrize("target", ["existing", "missing"])
+def test_rejects_user_in_body_for_customer_with_400(target):
+    # Same answer whether the id exists or not, so customers cannot probe user ids.
     client = APIClient()
     customer = create_user("customer")
     other = create_user("other")
     court = create_court()
     client.force_authenticate(user=customer)
     data = {
-        "user": other.id,
+        "user": other.id if target == "existing" else other.id + 1000,
         "bookings": [{"court": court.id, "starts_at": "2030-10-01T08:00:00-03:00"}],
     }
     response = client.post("/api/v1/orders/", data, format="json")
     assert response.status_code == 400
-    assert "user" in response.data
+    assert response.data == {"user": [CUSTOMER_PICKS_USER]}
     assert_nothing_created()
 
 
@@ -665,6 +672,29 @@ def test_rejects_cancel_of_non_pending_order_with_409(status):
     order.refresh_from_db()
     assert order.status == status
     assert order.bookings.filter(status=BookingStatus.ACTIVE).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_confirm_and_cancel_of_order_let_only_one_win():
+    customer = create_user("customer")
+    staff = create_user("staff", role=Role.STAFF)
+    order = create_order(customer, ["2030-10-01T08:00:00-03:00"])
+    confirm, cancel = post_concurrently(
+        [
+            (staff, f"/api/v1/orders/{order.id}/confirm/"),
+            (customer, f"/api/v1/orders/{order.id}/cancel/"),
+        ],
+        Order,
+    )
+    assert sorted([confirm.status_code, cancel.status_code]) == [200, 409]
+    order.refresh_from_db()
+    booking = order.bookings.get()
+    if confirm.status_code == 200:
+        assert order.status == OrderStatus.PAID
+        assert booking.status == BookingStatus.ACTIVE
+    else:
+        assert order.status == OrderStatus.CANCELLED
+        assert booking.status == BookingStatus.CANCELLED
 
 
 @pytest.mark.django_db

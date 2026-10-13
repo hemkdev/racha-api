@@ -194,6 +194,14 @@ def test_rejects_invalid_filter_with_400(path, param):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("path", ["/api/v1/bookings/", "/api/v1/orders/"])
+def test_treats_empty_period_as_absent(path):
+    # A form submitting blank fields must behave like the empty court filters.
+    client, _ = staff_client()
+    results(client.get(f"{path}?from=&to="))
+
+
+@pytest.mark.django_db
 def test_filters_bookings_by_local_day_period():
     client, staff = staff_client()
     customer = User.objects.create_user(username="customer", role=Role.CUSTOMER)

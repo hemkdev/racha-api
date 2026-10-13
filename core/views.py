@@ -27,7 +27,7 @@ from core.serializers import BookingSerializer, CourtSerializer, OrderSerializer
 
 
 def parse_date_param(value, param):
-    if value is None:
+    if not value:
         return None
     try:
         return date.fromisoformat(value)
@@ -130,11 +130,12 @@ class CourtViewSet(viewsets.ModelViewSet):
                 starts_at__lt=starts[-1] + slot_duration,
             ).values_list("starts_at", flat=True)
         )
+        now = timezone.now()
         slots = [
             {
                 "starts_at": start,
                 "ends_at": start + slot_duration,
-                "available": start not in booked,
+                "available": start not in booked and start > now,
                 "price": str(court.price_at(start)),
             }
             for start in starts
@@ -180,8 +181,12 @@ class BookingViewSet(
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         booking = self.get_object()
+        if booking.order:
+            booking.order = Order.objects.select_for_update().get(pk=booking.order.pk)
+            booking.refresh_from_db(fields=["status"])
         if booking.status != BookingStatus.ACTIVE:
             return Response(
                 {"detail": "Only active bookings can be cancelled."},
@@ -201,17 +206,15 @@ class BookingViewSet(
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        with transaction.atomic():
-            booking.status = BookingStatus.CANCELLED
-            booking.save(update_fields=["status"])
-            if (
-                booking.order
-                and not booking.order.bookings.filter(
-                    status=BookingStatus.ACTIVE
-                ).exists()
-            ):
-                booking.order.status = OrderStatus.CANCELLED
-                booking.order.save(update_fields=["status"])
+
+        booking.status = BookingStatus.CANCELLED
+        booking.save(update_fields=["status"])
+        if (
+            booking.order
+            and not booking.order.bookings.filter(status=BookingStatus.ACTIVE).exists()
+        ):
+            booking.order.status = OrderStatus.CANCELLED
+            booking.order.save(update_fields=["status"])
         booking = self.get_object()
         serializer = self.get_serializer(booking)
         return Response(serializer.data)
@@ -261,8 +264,10 @@ class OrderViewSet(
         serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=["post"], permission_classes=[IsStaffRoleOrReadOnly])
+    @transaction.atomic
     def confirm(self, request, pk=None):
         order = self.get_object()
+        order = Order.objects.select_for_update().get(pk=order.pk)
         if order.status != OrderStatus.PENDING:
             return Response(
                 {"detail": "Only pending orders can be confirmed."},
@@ -271,12 +276,15 @@ class OrderViewSet(
 
         order.status = OrderStatus.PAID
         order.save(update_fields=["status"])
+        order = self.get_object()
         serializer = self.get_serializer(order)
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         order = self.get_object()
+        order = Order.objects.select_for_update().get(pk=order.pk)
         if order.status != OrderStatus.PENDING:
             return Response(
                 {"detail": "Only pending orders can be cancelled."},
@@ -293,12 +301,11 @@ class OrderViewSet(
                 },
                 status=status.HTTP_409_CONFLICT,
             )
-        with transaction.atomic():
-            order.status = OrderStatus.CANCELLED
-            order.save(update_fields=["status"])
-            order.bookings.filter(status=BookingStatus.ACTIVE).update(
-                status=BookingStatus.CANCELLED
-            )
+        order.status = OrderStatus.CANCELLED
+        order.save(update_fields=["status"])
+        order.bookings.filter(status=BookingStatus.ACTIVE).update(
+            status=BookingStatus.CANCELLED
+        )
         order = self.get_object()
         serializer = self.get_serializer(order)
         return Response(serializer.data)

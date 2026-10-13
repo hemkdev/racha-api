@@ -18,7 +18,11 @@ from core.models import (
     Tier,
     User,
 )
-from core.tests.helpers import create_customer_booking, freeze_now
+from core.tests.helpers import (
+    create_customer_booking,
+    freeze_now,
+    post_concurrently,
+)
 
 MAINTENANCE = {"kind": BookingKind.MAINTENANCE, "reason": "Net repair"}
 
@@ -824,6 +828,53 @@ def test_cancels_order_when_its_last_active_booking_is_cancelled_with_200():
     assert response.status_code == 200
     order.refresh_from_db()
     assert order.status == OrderStatus.CANCELLED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_cancels_order_when_its_last_bookings_are_cancelled_concurrently():
+    # Each request sees the other booking still active unless the order is locked.
+    customer, _, order, bookings = create_cancel_scenario(slots=2)
+    responses = post_concurrently(
+        [(customer, f"/api/v1/bookings/{booking.id}/cancel/") for booking in bookings],
+        Booking,
+    )
+    assert [response.status_code for response in responses] == [200, 200]
+    order.refresh_from_db()
+    assert order.status == OrderStatus.CANCELLED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_cancels_same_booking_only_once_when_requests_race():
+    # The second request must see the status the first one wrote while it waited.
+    customer, _, order, (booking, _) = create_cancel_scenario(slots=2)
+    path = f"/api/v1/bookings/{booking.id}/cancel/"
+    responses = post_concurrently([(customer, path), (customer, path)], Booking)
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PENDING
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_booking_cancel_and_order_confirm_let_only_one_win():
+    customer, _, order, (booking,) = create_cancel_scenario()
+    staff = User.objects.create_user(username="staff", role=Role.STAFF)
+    cancel, confirm = post_concurrently(
+        [
+            (customer, f"/api/v1/bookings/{booking.id}/cancel/"),
+            (staff, f"/api/v1/orders/{order.id}/confirm/"),
+        ],
+        Booking,
+        Order,
+    )
+    assert sorted([cancel.status_code, confirm.status_code]) == [200, 409]
+    order.refresh_from_db()
+    booking.refresh_from_db()
+    if confirm.status_code == 200:
+        assert order.status == OrderStatus.PAID
+        assert booking.status == BookingStatus.ACTIVE
+    else:
+        assert order.status == OrderStatus.CANCELLED
+        assert booking.status == BookingStatus.CANCELLED
 
 
 @pytest.mark.django_db

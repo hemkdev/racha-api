@@ -132,6 +132,14 @@ class OrderSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "status", "created_by"]
         extra_kwargs = {"user": {"required": False}}
 
+    def to_internal_value(self, data):
+        requester = self.context["request"].user
+        if requester.role == Role.CUSTOMER and "user" in data:
+            raise serializers.ValidationError(
+                {"user": ["Customers can only create orders for themselves."]}
+            )
+        return super().to_internal_value(data)
+
     def validate(self, attrs):
         requester = self.context["request"].user
         if requester.role == Role.STAFF and (
@@ -139,10 +147,6 @@ class OrderSerializer(serializers.ModelSerializer):
         ):
             raise serializers.ValidationError(
                 {"user": "Staff must specify a customer for the order."}
-            )
-        elif requester.role == Role.CUSTOMER and "user" in attrs:
-            raise serializers.ValidationError(
-                {"user": "Customers can only create orders for themselves."}
             )
         attrs["user"] = attrs.get("user", requester)
         return attrs
@@ -178,7 +182,10 @@ class OrderSerializer(serializers.ModelSerializer):
                             price_charged=price_charged,
                         )
                 except IntegrityError as error:
-                    if "unique_booking_per_court_time" in str(error):
+                    if (
+                        error.__cause__.diag.constraint_name
+                        == "unique_booking_per_court_time"
+                    ):
                         raise serializers.ValidationError(
                             {
                                 "bookings": {
