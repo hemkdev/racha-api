@@ -299,9 +299,11 @@ def test_list_shows_booked_slots_as_unavailable_with_200():
 
 
 @pytest.mark.django_db
-def test_list_shows_started_slots_as_unavailable_with_200():
+@pytest.mark.parametrize("now", ["2030-10-01T10:30:00", "2030-10-01T10:00:00"])
+def test_list_shows_started_slots_as_unavailable_with_200(now):
+    # A slot starting right now is already refused on purchase, so it is not offered.
     court = create_volleyball_court()
-    with freeze_now("2030-10-01T10:30:00"):
+    with freeze_now(now):
         response = APIClient().get(f"/api/v1/courts/{court.id}/slots/?date=2030-10-01")
     assert response.status_code == 200
     availability = [slot["available"] for slot in response.json()["slots"]]
