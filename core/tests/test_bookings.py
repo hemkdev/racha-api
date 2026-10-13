@@ -844,6 +844,17 @@ def test_cancels_order_when_its_last_bookings_are_cancelled_concurrently():
 
 
 @pytest.mark.django_db(transaction=True)
+def test_cancels_same_booking_only_once_when_requests_race():
+    # The second request must see the status the first one wrote while it waited.
+    customer, _, order, (booking, _) = create_cancel_scenario(slots=2)
+    path = f"/api/v1/bookings/{booking.id}/cancel/"
+    responses = post_concurrently([(customer, path), (customer, path)], Booking)
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    order.refresh_from_db()
+    assert order.status == OrderStatus.PENDING
+
+
+@pytest.mark.django_db(transaction=True)
 def test_concurrent_booking_cancel_and_order_confirm_let_only_one_win():
     customer, _, order, (booking,) = create_cancel_scenario()
     staff = User.objects.create_user(username="staff", role=Role.STAFF)
