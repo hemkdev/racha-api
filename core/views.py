@@ -27,7 +27,7 @@ from core.serializers import BookingSerializer, CourtSerializer, OrderSerializer
 
 
 def parse_date_param(value, param):
-    if value is None:
+    if not value:
         return None
     try:
         return date.fromisoformat(value)
