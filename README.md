@@ -1,56 +1,164 @@
+<div align="center">
+
+[![CI](https://img.shields.io/github/actions/workflow/status/hemkdev/racha-api/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=white&label=CI)](https://github.com/hemkdev/racha-api/actions)
+[![Website](https://img.shields.io/website?url=https%3A%2F%2Fracha.hemk.dev%2Fapi%2Fv1%2Fcourts%2F&style=flat&logo=cloudflare&logoColor=white&label=website)](https://racha.hemk.dev)
+[![License](https://img.shields.io/github/license/hemkdev/racha-api?style=flat)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/hemkdev/racha-api?style=flat&logo=github)](https://github.com/hemkdev/racha-api/stargazers)
+
+![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=flat&logo=python&logoColor=white)
+![Django](https://img.shields.io/badge/Django-5.2%20LTS-092E20?style=flat&logo=django&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat&logo=postgresql&logoColor=white)
+
+</div>
+
 # racha-api
 
-REST API for booking sports courts with Django, DRF and PostgreSQL. **Work in progress.**
+REST API for renting sports courts **by the hour**: a daily grid of free slots, purchases of
+several slots in one request, and maintenance blocks. Built for one arena, where customers book
+online and **pay at the front desk**.
 
-A study project on the ORM and data modeling: business rules live in database constraints,
-and each rule is tested at both the database and the API level. CI (lint, tests, Docker build)
-is required to merge into `main`.
+I built it to learn Django, DRF and PostgreSQL properly, on a real domain instead of a tutorial:
+every rule that could live in the database went there, and every decision is written down. The
+reasoning and most of the domain code are mine. AI wrote most of the tests, the Docker, CI and
+deploy setup, and the wording of these docs.
 
-**Stack:** Python 3.14 · Django 5.2 · DRF · PostgreSQL 17 · pytest · uv · Docker · GitHub Actions
+This repo is **backend only**. Double booking is refused by the database itself, not only by the
+code, including two requests at the same instant. How and why is in
+[docs/database.md](docs/database.md).
 
-## How it works
+## Endpoints
 
-Courts are rented by the hour, from 8:00 to 22:00, with peak hours (18:00 to 22:00) charged
-at 1.5×. Anyone can see the courts and a day's slots at `GET /api/v1/courts/{id}/slots/?date=YYYY-MM-DD`;
-everything else needs a JWT from `POST /api/v1/token/`.
+Every endpoint is under `/api/v1/`. Courts and their grid are public; everything else needs a JWT,
+sent as `Authorization: Bearer <token>`. Lists are paginated (20 per page) and accept `?ordering=`.
 
-A customer buys one or more slots at once with `POST /api/v1/orders/`: either every slot is
-booked or none is. Payment happens at the front desk, with no deadline: the order stays
-`PENDING` until staff confirm it (`/confirm/`), which marks it `PAID`. While pending, the
-customer can cancel the whole order or single bookings; cancelling the last active booking
-cancels the order. To keep slots from being held indefinitely, a customer can hold at most
-4 future hours in pending orders; staff buying on a customer's behalf are exempt. Staff also
-block slots for maintenance through `POST /api/v1/bookings/`.
+Access tokens last 5 minutes and refresh tokens 1 day. There is no server-side logout: a token
+stays valid until it expires. There is no sign-up either: staff create customers in the admin, and
+`createsuperuser` creates a staff user.
 
-There is no sign-up: customers are created by staff in the Django admin. `createsuperuser`
-creates a `STAFF` user. Tokens use simplejwt's defaults (5-minute access, 1-day refresh) and
-there is no server-side logout; a token stays valid until it expires.
+Requests are throttled per client: 60 per minute anonymous, 300 per minute authenticated and 5 per
+minute on `/token/`. Over the limit, the API answers 429.
 
-The API is throttled per client: 60 requests per minute for anonymous clients, 300 for
-authenticated users, and 5 per minute on `/api/v1/token/`.
+| Method | Path | Who | Description |
+|---|---|---|---|
+| `POST` | `/token/` | anyone | Get an access and a refresh token |
+| `POST` | `/token/refresh/` | anyone | Get a new access token |
+| `GET` | `/courts/`, `/courts/{id}/` | anyone | List or read courts |
+| `POST`, `PUT`, `PATCH`, `DELETE` | `/courts/`, `/courts/{id}/` | staff | Manage courts. A court with bookings cannot be deleted, only deactivated, which in turn is refused while it has future bookings |
+| `GET` | `/courts/{id}/slots/?date=` | anyone | Every hour of a day with its price; taken and past hours are unavailable |
+| `GET` | `/orders/`, `/orders/{id}/` | user | Customers see their own, staff see all |
+| `POST` | `/orders/` | user | Buy one or more slots |
+| `POST` | `/orders/{id}/confirm/` | staff | Mark a pending order as paid |
+| `POST` | `/orders/{id}/cancel/` | owner, staff | Cancel a pending order |
+| `GET` | `/bookings/`, `/bookings/{id}/` | user | Customers see their own, staff see all |
+| `POST` | `/bookings/` | staff | Block a slot for maintenance |
+| `POST` | `/bookings/{id}/cancel/` | owner, staff | Cancel one hour of a pending order, or a maintenance block, and free the slot |
 
-Most rules are database constraints. A few depend on the clock or on another row and are
-enforced only by the API: working hours, refusing past slots, repeated sports on a court,
-and an order belonging to a `CUSTOMER`.
+### `GET /courts/`
+
+| Param | Description |
+|---|---|
+| `sport` | `FUTSAL`, `SOCIETY`, `BASKETBALL`, `VOLLEYBALL`, `BEACH_VOLLEYBALL`, `FOOTVOLLEY` or `BEACH_TENNIS` |
+| `tier` | `BASIC`, `PREMIUM` or `DELUXE` |
+| `is_active` | `true` or `false` |
+| `search` | part of the court name |
+
+### `GET /orders/` and `GET /bookings/`
+
+| Param | Description |
+|---|---|
+| `from`, `to` | period by local date (`YYYY-MM-DD`): `created_at` for orders, `starts_at` for bookings |
+| `status` | orders only: `PENDING`, `PAID` or `CANCELLED` |
+
+An invalid filter answers 400 under the parameter's name. It never returns an empty list.
+
+### `POST /orders/`
+
+All or nothing: if one slot is taken, no booking is created, and the response lists **every**
+slot that failed and why. A customer can hold at most **4 future hours** in pending orders.
+
+```http
+POST /api/v1/orders/
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "bookings": [
+    {"court": 1, "starts_at": "2026-10-20T19:00:00-03:00"},
+    {"court": 1, "starts_at": "2026-10-20T20:00:00-03:00"}
+  ]
+}
+```
+
+If the second hour is already taken, nothing is booked and the answer is 400, with the errors keyed
+by the position of each failed slot:
+
+```json
+{"bookings": {"1": {"starts_at": ["This court is already booked for the selected time slot."]}}}
+```
+
+Staff buy on a customer's behalf by adding `"user": <customer id>`; without it the answer is 400.
+Customers cannot send `user`: an order is always their own.
+
+To find free slots first: `GET /api/v1/courts/1/slots/?date=2026-10-20`.
+
+### Rules
+
+- Courts open from 08:00 to 22:00. Peak hours (18:00 to 22:00) cost 1.5× the base price.
+- A slot starts on the hour and lasts one hour. Buying three hours creates three bookings.
+- The price paid is stored on each booking, so a later price change does not alter past orders.
+- Nothing in the past can be booked or cancelled.
 
 ## Running locally
 
+Requires Docker and [uv](https://docs.astral.sh/uv/).
+
 ```bash
-docker compose up -d db
-cp .env.example .env   # set SECRET_KEY and DATABASE_URL=postgresql://racha:racha@localhost:5432/racha
+cp .env.example .env          # then fill SECRET_KEY, see below
+docker compose up -d          # PostgreSQL
 uv sync
 uv run manage.py migrate
 uv run manage.py createsuperuser
-uv run manage.py runserver   # http://localhost:8000/api/v1/
-uv run pytest
+uv run manage.py runserver
 ```
 
-## Next steps
+`SECRET_KEY` is empty in `.env.example` and Django refuses to start without it. Generate one with:
 
-Known gaps, each one the next thing to build:
+```bash
+uv run python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"
+```
 
-- [ ] **Deployment** — Oracle Cloud ARM VM + Neon PostgreSQL, behind a Cloudflare Tunnel
+Tests and lint, the same checks CI runs on every pull request:
 
-## License
+```bash
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run manage.py makemigrations --check --dry-run
+```
 
-MIT
+## Deployment
+
+```mermaid
+flowchart LR
+    user[Client] -->|HTTPS| cf[Cloudflare]
+    cf -->|tunnel| vm
+    subgraph vm [Oracle Cloud ARM VM, no open ports]
+        nginx[nginx, static files] --> app[gunicorn + Django]
+    end
+    app -->|TLS| db[(Neon PostgreSQL)]
+```
+
+Publishing a GitHub release deploys it. Actions builds the `linux/arm64` images, pushes them to
+GHCR, reaches the VM over SSH through the tunnel, runs `migrate`, restarts the containers and
+fails if the API answers with an error. A rollback is the same workflow run by hand with the previous
+tag. It restores the code, not the schema.
+
+## Docs
+
+[database.md](docs/database.md) has the schema diagram, every constraint and the rules that live
+in the API instead. [decisions.md](docs/decisions.md) has what was chosen, what was rejected and
+why.
+
+## Support
+
+If this repo helped you, feel free to give it a ⭐ star. Thank you :)
