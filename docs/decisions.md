@@ -71,3 +71,11 @@ Orders stay `PENDING` until staff mark them `PAID`, often after the game. To sto
 holding the schedule without paying, they can hold at most 4 future hours in pending orders. The
 check runs in the purchase transaction with the customer's row locked, so two simultaneous
 purchases cannot both pass. Staff buying for a customer are exempt.
+
+## 12. No retries inside the application
+
+When Neon fails, a request fails with it: no retry loop around queries. Retrying inside a request
+multiplies the load exactly when the database is struggling, holds a gunicorn worker for longer,
+and the client can repeat the call itself. `CONN_HEALTH_CHECKS` already drops dead connections
+before a request uses them. The one bounded retry is in the deploy: the smoke check polls
+`/health/` up to ten times, since a fresh container takes a few seconds to answer.
