@@ -3,7 +3,9 @@ from datetime import date, datetime, time, timedelta
 from django.db import transaction
 from django.db.models import ProtectedError
 from django.utils import timezone
-from rest_framework import mixins, status, viewsets
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -102,6 +104,28 @@ class CourtViewSet(viewsets.ModelViewSet):
             raise Conflict("Cannot deactivate a court with future bookings.")
         serializer.save()
 
+    @extend_schema(
+        parameters=[OpenApiParameter("date", OpenApiTypes.DATE, required=True)],
+        responses=inline_serializer(
+            "CourtSlots",
+            {
+                "court": serializers.IntegerField(),
+                "date": serializers.DateField(),
+                "slots": inline_serializer(
+                    "Slot",
+                    {
+                        "starts_at": serializers.DateTimeField(),
+                        "ends_at": serializers.DateTimeField(),
+                        "available": serializers.BooleanField(),
+                        "price": serializers.DecimalField(
+                            max_digits=8, decimal_places=2
+                        ),
+                    },
+                    many=True,
+                ),
+            },
+        ),
+    )
     @action(detail=True, methods=["get"])
     def slots(self, request, pk=None):
         court = self.get_object()
@@ -182,6 +206,7 @@ class BookingViewSet(
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     @transaction.atomic
     def cancel(self, request, pk=None):
@@ -265,6 +290,7 @@ class OrderViewSet(
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"], permission_classes=[IsStaffRoleOrReadOnly])
     @transaction.atomic
     def confirm(self, request, pk=None):
@@ -282,6 +308,7 @@ class OrderViewSet(
         serializer = self.get_serializer(order)
         return Response(serializer.data)
 
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def cancel(self, request, pk=None):
