@@ -31,6 +31,9 @@ code, including two requests at the same instant. How and why is in
 Every endpoint is under `/api/v1/`. Courts and their grid are public; everything else needs a JWT,
 sent as `Authorization: Bearer <token>`. Lists are paginated (20 per page) and accept `?ordering=`.
 
+The full contract is browsable at `/api/docs/` (Swagger UI) and `/api/redoc/`, both built from
+the OpenAPI schema served at `/api/schema/`. The root URL redirects to the Swagger page.
+
 Access tokens last 5 minutes and refresh tokens 1 day. There is no server-side logout: a token
 stays valid until it expires. There is no sign-up either: staff create customers in the admin, and
 `createsuperuser` creates a staff user.

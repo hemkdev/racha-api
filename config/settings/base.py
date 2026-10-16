@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
     "core",
 ]
 
@@ -106,6 +108,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
@@ -114,6 +117,20 @@ REST_FRAMEWORK = {
     # nginx sets X-Forwarded-For to the visitor's address from Cloudflare; only
     # the last entry is trusted, whatever the client put before it.
     "NUM_PROXIES": 1,
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Racha API",
+    "DESCRIPTION": "REST API for booking sport courts.",
+    # The release tag in production (compose passes IMAGE_TAG); "dev" everywhere else.
+    "VERSION": env("APP_VERSION", default="dev"),
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Tags operations by resource (courts, bookings...) instead of "v1".
+    "SCHEMA_PATH_PREFIX": r"/api/v1",
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True, "filter": True},
 }
 
 # Internationalization

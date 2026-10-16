@@ -53,6 +53,8 @@ jobs:
       - name: Fail if a model changed and the migration was forgotten
         run: uv run manage.py makemigrations --check --dry-run
       - run: uv run manage.py migrate
+      - name: Fail if the OpenAPI schema has warnings
+        run: uv run manage.py spectacular --validate --fail-on-warn --file /dev/null
       - run: uv run pytest
 
   build:
