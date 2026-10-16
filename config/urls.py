@@ -7,8 +7,11 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
+from core.views import health
+
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="swagger-ui")),
+    path("health/", health),
     path("admin/", admin.site.urls),
     path("api/v1/", include("core.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

@@ -1,7 +1,8 @@
 from datetime import date, datetime, time, timedelta
 
-from django.db import transaction
+from django.db import DatabaseError, connection, transaction
 from django.db.models import ProtectedError
+from django.http import JsonResponse
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -372,3 +373,13 @@ class OrderViewSet(
 class TokenView(TokenObtainPairView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "token"
+
+
+# Plain Django view: outside DRF, so no throttle, no auth and no entry in the schema.
+def health(request):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+    except DatabaseError:
+        return JsonResponse({"status": "unavailable"}, status=503)
+    return JsonResponse({"status": "ok"})
