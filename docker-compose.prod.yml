@@ -8,6 +8,8 @@ services:
     environment:
       # manage.py defaults to dev; wsgi.py already points to prod
       DJANGO_SETTINGS_MODULE: config.settings.prod
+      # The release tag the deploy exported; shows up as the version in the API docs.
+      APP_VERSION: ${IMAGE_TAG:-dev}
     restart: unless-stopped
 
   web:

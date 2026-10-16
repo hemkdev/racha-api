@@ -122,7 +122,8 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Racha API",
     "DESCRIPTION": "REST API for booking sport courts.",
-    "VERSION": "0.1.0",
+    # The release tag in production (compose passes IMAGE_TAG); "dev" everywhere else.
+    "VERSION": env("APP_VERSION", default="dev"),
     "SERVE_INCLUDE_SCHEMA": False,
     # Tags operations by resource (courts, bookings...) instead of "v1".
     "SCHEMA_PATH_PREFIX": r"/api/v1",
