@@ -4,7 +4,12 @@ from django.db import transaction
 from django.db.models import ProtectedError
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+    inline_serializer,
+)
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, ValidationError
@@ -47,12 +52,27 @@ def parse_period(start_str, end_str):
     return start, end
 
 
+PERIOD_PARAMETERS = [
+    OpenApiParameter("from", OpenApiTypes.DATE),
+    OpenApiParameter("to", OpenApiTypes.DATE),
+]
+
+
 class Conflict(APIException):
     status_code = status.HTTP_409_CONFLICT
     default_detail = "Conflict"
     default_code = "conflict"
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter("sport", str, enum=Sport.values),
+            OpenApiParameter("tier", str, enum=Tier.values),
+            OpenApiParameter("is_active", OpenApiTypes.BOOL),
+        ]
+    )
+)
 class CourtViewSet(viewsets.ModelViewSet):
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ["name"]
@@ -169,6 +189,7 @@ class CourtViewSet(viewsets.ModelViewSet):
         return Response({"court": court.id, "date": value.isoformat(), "slots": slots})
 
 
+@extend_schema_view(list=extend_schema(parameters=PERIOD_PARAMETERS))
 class BookingViewSet(
     mixins.CreateModelMixin,
     mixins.ListModelMixin,
@@ -247,6 +268,14 @@ class BookingViewSet(
         return Response(serializer.data)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            *PERIOD_PARAMETERS,
+            OpenApiParameter("status", str, enum=OrderStatus.values),
+        ]
+    )
+)
 class OrderViewSet(
     mixins.CreateModelMixin,
     mixins.ListModelMixin,
