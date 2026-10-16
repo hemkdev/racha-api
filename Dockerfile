@@ -50,4 +50,7 @@ EXPOSE 8000
 
 # Worker count should track the VM's core count: (2 x cores) + 1 is the usual
 # starting point. Three is a safe default for the free-tier ARM slice.
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+# One JSON line per request on stdout; the IP comes from nginx, which copies CF-Connecting-IP.
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", \
+     "--access-logfile", "-", \
+     "--access-logformat", "{\"ip\": \"%({x-forwarded-for}i)s\", \"request\": \"%(r)s\", \"status\": %(s)s, \"ms\": %(M)s}"]

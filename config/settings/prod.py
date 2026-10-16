@@ -1,3 +1,6 @@
+import json
+import logging
+
 from .base import *
 
 # Debug settings
@@ -26,10 +29,26 @@ CACHES = {
     }
 }
 
-# Without DEBUG, Django only mails errors to ADMINS; print them to the container log
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        entry = {
+            "time": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(entry)
+
+
+# Without DEBUG, Django only mails errors to ADMINS; print them to the container log,
+# as JSON lines like the gunicorn access log
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "formatters": {"json": {"()": JsonFormatter}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "loggers": {"django": {"handlers": ["console"], "level": "ERROR"}},
 }
