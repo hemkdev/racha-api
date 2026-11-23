@@ -146,13 +146,13 @@ flowchart LR
     user[Client] -->|HTTPS| cf[Cloudflare]
     cf -->|tunnel| vm
     subgraph vm [Oracle Cloud ARM VM, no open ports]
-        nginx[nginx, static files] --> app[gunicorn + Django]
+        nginx[nginx, static files] --> app[gunicorn + Django] --> db[(PostgreSQL)]
     end
-    app -->|TLS| db[(Neon PostgreSQL)]
+    db -.->|encrypted dumps| r2[(Cloudflare R2)]
 ```
 
 Publishing a GitHub release deploys it. Actions builds the `linux/arm64` images, pushes them to
-GHCR, reaches the VM over SSH through the tunnel, runs `migrate`, restarts the containers and
+GHCR, reaches the VM over SSH through the tunnel, backs up the database to R2, runs `migrate`, restarts the containers and
 fails if the API answers with an error. A rollback is the same workflow run by hand with the previous
 tag. It restores the code, not the schema.
 
