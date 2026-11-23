@@ -1,4 +1,24 @@
 services:
+  db:
+    image: docker.io/library/postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: racha
+      POSTGRES_USER: racha
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    # No ports: only the compose network reaches the database.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U racha -d racha"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: &logs
+      options:
+        max-size: 10m
+        max-file: "3"
+
   app:
     image: ghcr.io/hemkdev/racha-api:${IMAGE_TAG:-latest}
     build:
@@ -10,7 +30,13 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.prod
       # The release tag the deploy exported; shows up as the version in the API docs.
       APP_VERSION: ${IMAGE_TAG:-dev}
+      # Overrides any DATABASE_URL left in .env; only the password comes from there.
+      DATABASE_URL: postgresql://racha:${DB_PASSWORD}@db:5432/racha
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+    logging: *logs
 
   web:
     image: ghcr.io/hemkdev/racha-api-web:${IMAGE_TAG:-latest}
@@ -23,3 +49,7 @@ services:
       # Loopback only: the Cloudflare tunnel on the host is the single way in.
       - "127.0.0.1:8080:80"
     restart: unless-stopped
+    logging: *logs
+
+volumes:
+  pgdata:

@@ -9,7 +9,7 @@ DEBUG = False
 # Allowed hosts
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
-# Database: reuse connections instead of a new TLS handshake per request
+# Database: reuse connections instead of opening a new one per request
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 

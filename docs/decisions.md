@@ -59,11 +59,15 @@ Local, CI and production run the same major version. SQLite accepts what Postgre
 the schema needs PostgreSQL: arrays and `DATE_TRUNC` do not exist in SQLite. The production
 database is never used for development.
 
-## 10. The application on a VM, the database elsewhere
+## 10. The application and its database on one VM
 
-The API runs on an Oracle Cloud Always Free ARM VM, which does not sleep like free platform tiers.
-The database is on Neon, so losing the VM means downtime, not data loss. The VM has no open ports:
-traffic and deploys go through a Cloudflare Tunnel.
+The API runs on an Oracle Cloud Always Free ARM VM, which does not sleep like free platform
+tiers. PostgreSQL runs next to it in the same compose, with no published port, so only the app
+reaches it. It started on Neon and moved to the VM: one provider and one credential fewer, and
+the same setup as local and CI. The trade-off is that losing the VM now means restoring data,
+not only downtime. A daily dump and one before every deploy go to Cloudflare R2, encrypted with
+age to a key that never sits on the VM. The VM has no open ports: traffic and deploys go
+through a Cloudflare Tunnel.
 
 ## 11. Payment at the front desk, and a cap on unpaid hours
 
@@ -74,7 +78,7 @@ purchases cannot both pass. Staff buying for a customer are exempt.
 
 ## 12. No retries inside the application
 
-When Neon fails, a request fails with it: no retry loop around queries. Retrying inside a request
+When the database fails, a request fails with it: no retry loop around queries. Retrying inside a request
 multiplies the load exactly when the database is struggling, holds a gunicorn worker for longer,
 and the client can repeat the call itself. `CONN_HEALTH_CHECKS` already drops dead connections
 before a request uses them. The one bounded retry is in the deploy: the smoke check polls

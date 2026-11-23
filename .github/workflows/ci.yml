@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      # Same major version as Neon and as the local compose, so a query that
+      # Same major version as production and the local compose, so a query that
       # works here works in production.
       postgres:
         image: postgres:17

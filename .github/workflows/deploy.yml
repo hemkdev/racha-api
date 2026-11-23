@@ -94,11 +94,14 @@ jobs:
       - name: Deploy
         run: |
           scp docker-compose.prod.yml vm:racha/docker-compose.yml
-          # Migrate before replacing the containers: if it fails, the old ones keep serving.
+          scp deploy/backup.sh vm:racha/
+          # Back up and migrate before replacing the containers: if either fails, the old ones keep serving.
           # $TAG expands here on purpose, before the command reaches the VM.
           # shellcheck disable=SC2029
-          ssh vm "cd racha && export IMAGE_TAG=$TAG \
+          ssh vm "cd racha && chmod +x backup.sh && export IMAGE_TAG=$TAG \
             && docker compose pull \
+            && docker compose up -d --wait db \
+            && ./backup.sh deploy $TAG \
             && docker compose run --rm app python manage.py migrate --noinput \
             && docker compose up -d --remove-orphans \
             && docker image prune -af"
