@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17
+    image: postgres:17.12
     environment:
       POSTGRES_DB: racha
       POSTGRES_USER: racha
