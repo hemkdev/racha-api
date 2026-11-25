@@ -22,10 +22,10 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      # Same major version as production and the local compose, so a query that
+      # Same Postgres version as production and the local compose, so a query that
       # works here works in production.
       postgres:
-        image: postgres:17
+        image: postgres:17.12
         env:
           POSTGRES_DB: racha
           POSTGRES_USER: racha
